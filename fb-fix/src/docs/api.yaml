@@ -1,0 +1,529 @@
+paths:
+
+  # ── AUTH ──────────────────────────────────────────────────────────────────
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:     { type: string, example: John Doe }
+                email:    { type: string, example: john@example.com }
+                password: { type: string, example: secret123 }
+      responses:
+        '201': { description: Account created }
+        '409': { description: Email already registered }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and get JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:    { type: string, example: john@example.com }
+                password: { type: string, example: secret123 }
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user:  { type: object, properties: { id: { type: integer }, name: { type: string }, email: { type: string } } }
+        '401': { description: Invalid credentials }
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        '200': { description: Current user info }
+        '401': { description: Unauthorized }
+
+  # ── OVERVIEW ──────────────────────────────────────────────────────────────
+  /api/overview:
+    get:
+      tags: [Overview]
+      summary: Get aggregated dashboard data
+      responses:
+        '200':
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalBalance:        { type: number }
+                  ccOutstanding:       { type: number }
+                  netSavings:          { type: number }
+                  income:              { type: number }
+                  expense:             { type: number }
+                  fileCount:           { type: integer }
+                  unreadNotifications: { type: integer }
+
+  # ── BANKS ─────────────────────────────────────────────────────────────────
+  /api/banks:
+    get:
+      tags: [Banks]
+      summary: List all bank accounts
+      responses:
+        '200': { description: Array of bank accounts }
+    post:
+      tags: [Banks]
+      summary: Create a bank account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:    { type: string, example: Maybank }
+                balance: { type: number, example: 1500.00 }
+      responses:
+        '201': { description: Bank account created }
+
+  /api/banks/{id}:
+    patch:
+      tags: [Banks]
+      summary: Update a bank account
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:    { type: string }
+                balance: { type: number }
+      responses:
+        '200': { description: Updated bank account }
+    delete:
+      tags: [Banks]
+      summary: Delete a bank account
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+
+  # ── TRANSACTIONS ──────────────────────────────────────────────────────────
+  /api/transactions:
+    get:
+      tags: [Transactions]
+      summary: List transactions
+      parameters:
+        - { in: query, name: bank_id,  schema: { type: integer } }
+        - { in: query, name: type,     schema: { type: string, enum: [income, expense] } }
+        - { in: query, name: category, schema: { type: string } }
+        - { in: query, name: month,    schema: { type: string, example: '2025-03' } }
+        - { in: query, name: search,   schema: { type: string } }
+        - { in: query, name: sort,     schema: { type: string, enum: [date-desc, date-asc, amount-desc, amount-asc], default: date-desc } }
+      responses:
+        '200': { description: Array of transactions }
+    post:
+      tags: [Transactions]
+      summary: Create a transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, amount, date]
+              properties:
+                type:        { type: string, enum: [income, expense] }
+                amount:      { type: number, example: 150.00 }
+                description: { type: string, example: Grocery shopping }
+                category:    { type: string, example: Food }
+                date:        { type: string, example: '2025-03-17' }
+                bank_id:     { type: integer }
+                is_savings:  { type: boolean, default: false }
+      responses:
+        '201': { description: Transaction created }
+
+  /api/transactions/{id}:
+    patch:
+      tags: [Transactions]
+      summary: Update a transaction
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:        { type: string }
+                amount:      { type: number }
+                description: { type: string }
+                category:    { type: string }
+                date:        { type: string }
+                bank_id:     { type: integer }
+                is_savings:  { type: boolean }
+      responses:
+        '200': { description: Updated transaction }
+    delete:
+      tags: [Transactions]
+      summary: Delete a transaction
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  # ── CREDIT CARDS ──────────────────────────────────────────────────────────
+  /api/credit/cards:
+    get:
+      tags: [Credit]
+      summary: List all credit cards
+      responses:
+        '200': { description: Array of credit cards }
+    post:
+      tags: [Credit]
+      summary: Create a credit card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:         { type: string, example: Visa Gold }
+                credit_limit: { type: number, example: 10000 }
+                outstanding:  { type: number, example: 0 }
+      responses:
+        '201': { description: Card created }
+
+  /api/credit/cards/{id}:
+    patch:
+      tags: [Credit]
+      summary: Update a credit card (triggers payment history if outstanding decreases)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:         { type: string }
+                credit_limit: { type: number }
+                outstanding:  { type: number }
+      responses:
+        '200': { description: Updated }
+    delete:
+      tags: [Credit]
+      summary: Delete a credit card
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  /api/credit/transactions:
+    get:
+      tags: [Credit]
+      summary: List CC transactions
+      parameters:
+        - { in: query, name: card_id, schema: { type: integer } }
+        - { in: query, name: month,   schema: { type: string } }
+        - { in: query, name: search,  schema: { type: string } }
+        - { in: query, name: sort,    schema: { type: string, enum: [date-desc, date-asc, amount-desc, amount-asc] } }
+      responses:
+        '200': { description: Array of CC transactions }
+    post:
+      tags: [Credit]
+      summary: Create a CC transaction (auto-increases outstanding)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, date]
+              properties:
+                card_id:     { type: integer }
+                amount:      { type: number, example: 200.00 }
+                description: { type: string }
+                category:    { type: string }
+                date:        { type: string }
+      responses:
+        '201': { description: Transaction created }
+
+  /api/credit/transactions/{id}:
+    delete:
+      tags: [Credit]
+      summary: Delete a CC transaction
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  /api/credit/history:
+    get:
+      tags: [Credit]
+      summary: List CC payment history
+      responses:
+        '200': { description: Array of payment records }
+
+  /api/credit/history/{id}:
+    delete:
+      tags: [Credit]
+      summary: Delete a payment history record
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  # ── DRIVE ─────────────────────────────────────────────────────────────────
+  /api/drive/folders:
+    get:
+      tags: [Drive]
+      summary: List all folders
+      responses:
+        '200': { description: Array of folders with file_count }
+    post:
+      tags: [Drive]
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: Receipts }
+      responses:
+        '201': { description: Folder created }
+
+  /api/drive/folders/{id}:
+    delete:
+      tags: [Drive]
+      summary: Delete a folder
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  /api/drive/files:
+    get:
+      tags: [Drive]
+      summary: List files
+      parameters:
+        - { in: query, name: folder_id, schema: { type: string }, description: "Use 'root' for files with no folder" }
+        - { in: query, name: search,    schema: { type: string } }
+        - { in: query, name: month,     schema: { type: string } }
+        - { in: query, name: sort,      schema: { type: string, enum: [date-desc, date-asc] } }
+      responses:
+        '200': { description: Array of files }
+    post:
+      tags: [Drive]
+      summary: Create a file record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:      { type: string, example: receipt.pdf }
+                type:      { type: string, example: receipt }
+                size:      { type: string, example: 2.5 MB }
+                folder_id: { type: integer }
+                date:      { type: string, example: '2025-03-17' }
+      responses:
+        '201': { description: File created }
+
+  /api/drive/files/{id}:
+    delete:
+      tags: [Drive]
+      summary: Delete a file record
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  # ── EVENTS ────────────────────────────────────────────────────────────────
+  /api/events:
+    get:
+      tags: [Events]
+      summary: List events
+      parameters:
+        - { in: query, name: month, schema: { type: string, example: '2025-03' } }
+      responses:
+        '200': { description: Array of events }
+    post:
+      tags: [Events]
+      summary: Create an event (auto-creates reminder notifications)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, date]
+              properties:
+                title:          { type: string, example: Doctor appointment }
+                date:           { type: string, example: '2025-04-01' }
+                reminder_email: { type: string, example: user@email.com }
+      responses:
+        '201': { description: Event created }
+
+  /api/events/{id}:
+    delete:
+      tags: [Events]
+      summary: Delete an event
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  # ── NOTES ─────────────────────────────────────────────────────────────────
+  /api/notes:
+    get:
+      tags: [Notes]
+      summary: List notes
+      parameters:
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: sort, schema: { type: string, enum: [date-desc, date-asc, status-active, status-completed] } }
+      responses:
+        '200': { description: Array of notes }
+    post:
+      tags: [Notes]
+      summary: Create a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, example: Pay electricity bill }
+                date: { type: string, example: '2025-03-31' }
+      responses:
+        '201': { description: Note created }
+
+  /api/notes/{id}:
+    patch:
+      tags: [Notes]
+      summary: Update a note
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:      { type: string }
+                date:      { type: string }
+                completed: { type: boolean }
+      responses:
+        '200': { description: Updated note }
+    delete:
+      tags: [Notes]
+      summary: Delete a note
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  # ── NOTIFICATIONS ─────────────────────────────────────────────────────────
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: List all notifications
+      responses:
+        '200': { description: Array of notifications }
+
+  /api/notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      responses:
+        '200': { description: All marked as read }
+
+  /api/notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark a notification as read
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Notification marked read }
+
+  /api/notifications/{id}:
+    delete:
+      tags: [Notifications]
+      summary: Delete a notification
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Deleted }
+
+  # ── SETTINGS ──────────────────────────────────────────────────────────────
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: Get all settings as key-value map
+      responses:
+        '200': { description: Settings map }
+
+  /api/settings/profile:
+    patch:
+      tags: [Settings]
+      summary: Update user profile name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: John Doe }
+      responses:
+        '200': { description: Updated user }
+
+  /api/settings/{key}:
+    put:
+      tags: [Settings]
+      summary: Set a setting value
+      parameters:
+        - { in: path, name: key, required: true, schema: { type: string, example: reminder_email } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value: { type: string, example: reminder@email.com }
+      responses:
+        '200': { description: Setting saved }
