@@ -27,18 +27,6 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-}));
-
 app.use(express.json());
 
 // ── Routes ────────────────────────────────────────────────────────────────────
