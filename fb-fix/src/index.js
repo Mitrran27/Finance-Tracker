@@ -19,10 +19,27 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+// app.use(cors({
+//   origin: process.env.CLIENT_URL || 'http://localhost:5173',
+//   credentials: true,
+// }));
+const allowedOrigins = [
+  'http://localhost:5173',
+  process.env.CLIENT_URL
+];
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
+
 app.use(express.json());
 
 // ── Routes ────────────────────────────────────────────────────────────────────
