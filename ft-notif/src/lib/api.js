@@ -51,3 +51,5 @@ export const api = {
   put:    (path, body) => fetch(`${BASE}${path}`, { method: 'PUT', headers: headers(), body: JSON.stringify(body) }).then(handle),
   delete: (path)       => fetch(`${BASE}${path}`, { method: 'DELETE', headers: headers() }).then(handle),
 };
+
+console.log("API URL:", import.meta.env.PUBLIC_API_URL);
