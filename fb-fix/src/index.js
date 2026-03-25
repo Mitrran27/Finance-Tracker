@@ -19,14 +19,13 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-// app.use(cors({
-//   origin: process.env.CLIENT_URL || 'http://localhost:5173',
-//   credentials: true,
-// }));
-const allowedOrigins = [
-  'http://localhost:5173',
-  process.env.CLIENT_URL
-];
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://finance-tracker-theta-fawn.vercel.app'
+  ],
+  credentials: true,
+}));
 
 app.use(cors({
   origin: function (origin, callback) {
