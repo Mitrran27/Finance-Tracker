@@ -68,9 +68,11 @@ router.post('/', async (req, res) => {
     const offsets  = [{ days:1, label:'1 day' }, { days:3, label:'3 days' }, { days:7, label:'1 week' }];
 
     for (const { days, label } of offsets) {
-      const rd = new Date(date + 'T12:00:00');
-      rd.setDate(rd.getDate() - days);
-      const rdStr = `${rd.getFullYear()}-${String(rd.getMonth()+1).padStart(2,'0')}-${String(rd.getDate()).padStart(2,'0')}`;
+      // Parse date string directly — never use new Date(string) to avoid UTC shifts
+      const [ey, em, ed] = String(date).slice(0,10).split('-').map(Number);
+      // Use Date(year, month-1, day) constructor — always local, never UTC
+      const base = new Date(ey, em - 1, ed - days);
+      const rdStr = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
 
       if (rdStr >= todayStr) {
         await sql`

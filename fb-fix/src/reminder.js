@@ -12,9 +12,9 @@ function fmtDate(d) {
   return new Date(y,m-1,day).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 }
 function rdStr(baseDate, daysBack) {
-  const rd = new Date(String(baseDate).slice(0,10) + 'T12:00:00');
-  rd.setDate(rd.getDate() - daysBack);
-  return `${rd.getFullYear()}-${String(rd.getMonth()+1).padStart(2,'0')}-${String(rd.getDate()).padStart(2,'0')}`;
+  const [y, m, d] = String(baseDate).slice(0,10).split('-').map(Number);
+  const dt = new Date(y, m - 1, d - daysBack); // local date constructor, no UTC shift
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
 }
 
 export async function runReminders() {

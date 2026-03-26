@@ -13,13 +13,18 @@
   let eType='expense', eAmount='', eDesc='', eCat='Food', eDate=today(), eBank='', eSavings=false;
 
   function getBankSummary(bank) {
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const bankTxs = txs.filter(t => String(t.bank_id) === String(bank.id) && t.date?.slice(0, 7) === currentMonth);
-    const inc = bankTxs.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
-    const exp = bankTxs.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
-    const finalBal = Number(bank.balance);
+    const d = new Date();
+    const currentMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    // Filter ALL transactions (not just current page view) for this bank this month
+    const bankTxs = txs.filter(t => String(t.bank_id) === String(bank.id) && t.date?.slice(0,7) === currentMonth);
+    const inc = bankTxs.filter(t => t.type==='income').reduce((s,t) => s+Number(t.amount), 0);
+    const exp = bankTxs.filter(t => t.type==='expense').reduce((s,t) => s+Number(t.amount), 0);
+    const sav = bankTxs.filter(t => t.is_savings).reduce((s,t) => s+Number(t.amount), 0);
+    // bank.balance is always the real live balance (backend keeps it in sync)
+    const finalBal   = Number(bank.balance);
+    // Original = what it was before this month's income/expenses
     const originalBal = finalBal - inc + exp;
-    return { inc, exp, finalBal, originalBal };
+    return { inc, exp, sav, finalBal, originalBal };
   }
 
   onMount(async () => {
@@ -191,6 +196,7 @@
             <div class="summary-row"><span class="muted">Original Amount:</span><span class="mono fw">{fmt(s.originalBal)}</span></div>
             <div class="summary-row"><span class="pos">+ Income:</span><span class="mono fw pos">+{fmt(s.inc)}</span></div>
             <div class="summary-row"><span class="neg">− Expenses:</span><span class="mono fw neg">−{fmt(s.exp)}</span></div>
+            {#if s.sav > 0}<div class="summary-row"><span class="sav">💾 Savings:</span><span class="mono fw sav">{fmt(s.sav)}</span></div>{/if}
             <div class="summary-row final-row"><span class="muted fw">Final Balance:</span><span class="mono pos" style="font-size:14px;font-weight:700">{fmt(s.finalBal)}</span></div>
           </div>
           <p class="next-month">Next month starts at {fmt(s.finalBal)}</p>
@@ -232,8 +238,8 @@
                   {tx.type==='income' ? '+' : '-'}{fmt(tx.amount)}
                 </td>
                 <td class="actions">
-                  <button class="icon-btn" on:click={() => openEdit(tx)} title="Edit">✏️</button>
-                  <button class="icon-btn" on:click={() => deleteTx(tx.id)} title="Delete">🗑</button>
+                  <button class="icon-btn" on:click={() => openEdit(tx)} title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                  <button class="icon-btn" on:click={() => deleteTx(tx.id)} title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
                 </td>
               </tr>
             {/each}
@@ -360,6 +366,7 @@
   .muted{color:var(--text2);}
   .pos{color:var(--accent);}
   .neg{color:var(--danger);}
+  .sav{color:var(--accent2);}
   .fw{font-weight:600;}
 
   .table-wrap{overflow:hidden;}
@@ -371,8 +378,8 @@
   .right{text-align:right;}
   .empty{text-align:center;color:var(--text2);padding:32px;}
   .actions{display:flex;gap:4px;}
-  .icon-btn{background:none;border:none;cursor:pointer;font-size:13px;opacity:.6;padding:2px;}
-  .icon-btn:hover{opacity:1;}
+  .icon-btn{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.45);padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+  .icon-btn:hover{background:rgba(255,92,124,.12);color:var(--danger);}
   .mono{font-family:'Space Mono',monospace;}
   .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
   .badge.income{background:rgba(0,229,160,.15);color:var(--accent);}

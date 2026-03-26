@@ -59,7 +59,7 @@
             {#if !n.is_read}
               <button class="read-btn" on:click={() => markRead(n.id)}>Read</button>
             {/if}
-            <button class="icon-btn" on:click={() => deleteNotif(n.id)}>🗑</button>
+            <button class="icon-btn" on:click={() => deleteNotif(n.id)}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
       {/each}
@@ -81,7 +81,7 @@
   .notif-date{font-size:11px;color:var(--text2);margin-top:3px;}
   .notif-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
   .read-btn{background:none;border:none;cursor:pointer;color:var(--accent);font-size:12px;font-weight:600;}
-  .icon-btn{background:none;border:none;cursor:pointer;font-size:13px;opacity:.6;}
-  .icon-btn:hover{opacity:1;}
+  .icon-btn{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.45);padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+  .icon-btn:hover{background:rgba(255,92,124,.12);color:var(--danger);}
   .empty-state{padding:48px;text-align:center;color:var(--text2);}
 </style>
