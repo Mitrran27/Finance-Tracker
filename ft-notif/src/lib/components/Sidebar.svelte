@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { user } from '$lib/stores.js';
   import ComingSoonBadge from './ComingSoonBadge.svelte';
+  import InfoTooltip from '../../lib/components/InfoTooltip.svelte';
 
   const navItems = [
     { href: '/',             label: 'Overview',      icon: 'dashboard' },
@@ -10,7 +11,7 @@
     { href: '/transactions', label: 'Transactions',  icon: 'arrows' },
     { href: '/credit',       label: 'Credit Cards',  icon: 'card' },
     { href: '/drive',        label: 'Drive',         icon: 'drive' },
-    { href: '/calendar',     label: 'Calendar',      icon: 'calendar' },
+    { href: '/calendar',     label: 'Calendar',      icon: 'calendar',    tooltip: 'Email reminders may not work because current hosting blocks Gmail SMTP.' },
     { href: '/notes',        label: 'Notes',         icon: 'note' },
     { href: '/goals',        label: 'Goals',         icon: 'goals',       badge: 'COMING SOON'},
     { href: '/investments',  label: 'Investments',   icon: 'investments', badge: 'COMING SOON'},
@@ -81,8 +82,12 @@
         {/if}
         <span>{item.label}</span>
 
+        {#if item.tooltip}
+          <InfoTooltip text={item.tooltip} />
+        {/if}
+
         {#if item.badge}
-          <ComingSoonBadge text="COMING SOON" />
+          <ComingSoonBadge text={item.badge} />
         {/if}
       </a>
     {/each}

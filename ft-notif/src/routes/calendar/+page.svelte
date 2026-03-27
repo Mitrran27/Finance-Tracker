@@ -3,6 +3,7 @@
   import { api } from '$lib/api.js';
   import { showToast } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
+  import InfoTooltip from '../../lib/components/InfoTooltip.svelte';
 
   // ── Today: always use LOCAL date, never UTC ──────────────────────────────
   // toISOString() returns UTC which breaks Malaysia time (UTC+8).
@@ -294,7 +295,10 @@
     <input id="ev-date" class="input-field" type="date" bind:value={fDate}>
   </div>
   <div class="form-group">
+  <div style="display:flex;align-items:center;">
     <label for="ev-email">Send Reminder To</label>
+    <InfoTooltip text="Current hosting provider does not allow Gmail SMTP. Email reminders may not be delivered. We're working on it — stay tuned!" />
+  </div>
     {#if reminderEmails.length > 0}
       <select id="ev-email" class="input-field" bind:value={fEmail}>
         {#each reminderEmails as email, i}
