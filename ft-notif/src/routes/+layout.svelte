@@ -11,6 +11,17 @@
   let ready = false;
   const publicRoutes = ['/auth'];
 
+  // ── Fun loading messages ──────────────────────────────────────────────────
+  const loadingTexts = [
+    "🍔 Flipping data patties for burgers...",
+    "🍕 Heating up data pizzas...",
+    "🍦 Scooping data ice creams...",
+    "🥤 Shaking data milkshakes...",
+    "🍟 Frying up hashed data...",
+    "☕️ Brewing fresh data coffee beans...",
+  ];
+  let loadingText = loadingTexts[Math.floor(Math.random() * loadingTexts.length)];
+
   // ── Live clock ────────────────────────────────────────────────────────────
   let now = new Date();
   let clockInterval;
@@ -75,6 +86,7 @@
     '/notes':        'Notes',
     '/settings':     'Settings',
     '/notifications':'Notifications',
+    '/goals':        'Savings Goals',
   };
   $: title = pageTitles[$page.url.pathname] || 'Finance Tracker';
 </script>
@@ -83,7 +95,11 @@
 
 {#if !ready}
   <div class="loading-screen">
-    <div class="spinner"></div>
+    <div class="loading-fun">
+      <div class="loading-emoji">{loadingText.split(' ')[0]}</div>
+      <p class="loading-msg">{loadingText.slice(loadingText.indexOf(' ')+1)}</p>
+      <div class="loading-dots"><span></span><span></span><span></span></div>
+    </div>
   </div>
 {:else if isPublic}
   <slot />
@@ -128,14 +144,34 @@
     align-items: center; justify-content: center;
     background: var(--bg);
   }
-  .spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin .7s linear infinite;
+  .loading-fun {
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-emoji {
+    font-size: 52px;
+    animation: bounce 0.8s ease-in-out infinite alternate;
+  }
+  .loading-msg {
+    font-size: 14px; color: var(--text2); font-weight: 500;
+    text-align: center; max-width: 260px; line-height: 1.5;
+  }
+  .loading-dots {
+    display: flex; gap: 6px;
+  }
+  .loading-dots span {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); animation: dot-pulse 1.2s ease-in-out infinite;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: .2s; }
+  .loading-dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-12px); }
+  }
+  @keyframes dot-pulse {
+    0%, 80%, 100% { opacity: .2; transform: scale(.8); }
+    40%           { opacity: 1;  transform: scale(1); }
+  }
 
   .app-shell { display: flex; height: 100vh; width: 100%; overflow: hidden; }
   .main-col  { flex: 1; display: flex; flex-direction: column; overflow: hidden; }

@@ -4,12 +4,13 @@
   import { fmt, showToast, CATEGORIES, today } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
 
-  let txs = [], banks = [], loading = true;
+  let txs = [], banks = [], goals = [], loading = true;
+  let shortageGoals = [];
   let showAdd = false, showEdit = false;
   let editTx = null;
   let search = '', filterBank = '', dateFrom = '', dateTo = '', sort = 'date-desc';
 
-  let fType='expense', fAmount='', fDesc='', fCat='Food', fDate=today(), fBank='', fSavings=false;
+  let fType='expense', fAmount='', fDesc='', fCat='Food', fDate=today(), fBank='', fSavings=false, fGoalId='', fSavingsAmount='';
   let eType='expense', eAmount='', eDesc='', eCat='Food', eDate=today(), eBank='', eSavings=false;
 
   function getBankSummary(bank) {
@@ -28,10 +29,18 @@
   }
 
   onMount(async () => {
-    banks = await api.get('/banks');
+    [banks, goals] = await Promise.all([api.get('/banks'), api.get('/goals')]);
     if (banks.length) fBank = banks[0].id;
     await loadTxs();
+    checkShortages();
   });
+
+  async function checkShortages() {
+    try {
+      const res = await api.post('/goals/check-shortage', {});
+      shortageGoals = res.shortages || [];
+    } catch(e) { /* silent */ }
+  }
 
   async function loadTxs() {
     loading = true;
@@ -54,10 +63,14 @@
     try {
       await api.post('/transactions', {
         type: fType, amount: parseFloat(fAmount), description: fDesc,
-        category: fCat, date: fDate, bank_id: fBank || null, is_savings: fSavings
+        category: fCat, date: fDate, bank_id: fBank || null, is_savings: fSavings,
+        goal_id: fSavings && fGoalId ? parseInt(fGoalId) : null,
+        savings_amount: fSavings && fSavingsAmount ? parseFloat(fSavingsAmount) : 0,
       });
       showToast('Transaction added!');
-      showAdd = false; fAmount=''; fDesc=''; fSavings=false;
+      showAdd = false; fAmount=''; fDesc=''; fSavings=false; fGoalId=''; fSavingsAmount='';
+      goals = await api.get('/goals');
+      checkShortages();
       banks = await api.get('/banks');
       loadTxs();
     } catch(e) { showToast(e.message, 'error'); }
@@ -140,7 +153,12 @@
 
 <div class="fade-in space">
   <div class="page-hdr">
-    <p class="count">{txs.length} transaction{txs.length !== 1 ? 's' : ''}</p>
+    <div style="display:flex;align-items:center;gap:10px">
+      <p class="count">{txs.length} transaction{txs.length !== 1 ? 's' : ''}</p>
+      {#if shortageGoals.length > 0}
+        <span class="shortage-badge">⚠️ {shortageGoals.length} Savings Shortage{shortageGoals.length>1?'s':''}</span>
+      {/if}
+    </div>
     <div style="display:flex;gap:8px">
       <button class="btn-secondary" on:click={downloadCSV}>⬇ CSV</button>
       <button class="btn-secondary" on:click={printStatement}>🖨 Print Statement</button>
@@ -226,7 +244,7 @@
                 <td class="sm">{tx.date?.slice(0,10)}</td>
                 <td>
                   {tx.description || '-'}
-                  {#if tx.is_savings}<span class="badge savings">💾 Savings</span>{/if}
+                  {#if tx.is_savings}<span class="badge savings">💾 Savings{tx.goal_id ? ' → ' + (goals.find(g=>g.id==tx.goal_id)?.name||'Goal') : ''}</span>{/if}
                 </td>
                 <td>
                   <span class="badge" class:income={tx.type==='income'} class:expense={tx.type==='expense'}>
@@ -291,6 +309,29 @@
   <div class="form-group">
     <label class="checkbox-label"><input type="checkbox" bind:checked={fSavings}> Flag as savings</label>
   </div>
+  {#if fSavings}
+    <div class="savings-goal-box">
+      <div class="form-group">
+        <label for="f-goal">Link to Savings Goal (optional)</label>
+        <select id="f-goal" class="input-field" bind:value={fGoalId}>
+          <option value="">— No goal —</option>
+          {#each goals as g}
+            <option value={g.id}>{g.name} ({fmt(g.current)} / {fmt(g.target)})</option>
+          {/each}
+        </select>
+      </div>
+      {#if fGoalId}
+        <div class="form-group">
+          <label for="f-sav-amt">Amount to allocate to goal (RM)</label>
+          <input id="f-sav-amt" class="input-field" type="number" step="0.01"
+            placeholder="Enter savings amount (max: {fAmount})"
+            bind:value={fSavingsAmount}
+            max={fAmount}>
+          <p class="hint-text">💡 Remaining spendable: RM {Math.max(0, parseFloat(fAmount||0) - parseFloat(fSavingsAmount||0)).toFixed(2)}</p>
+        </div>
+      {/if}
+    </div>
+  {/if}
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showAdd=false}>Cancel</button>
     <button class="btn-primary" on:click={addTx}>Add Transaction</button>
@@ -389,4 +430,7 @@
   .form-group{margin-bottom:14px;}
   .checkbox-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2);}
   .modal-actions{display:flex;gap:8px;margin-top:20px;}
+  .shortage-badge{background:rgba(255,92,124,.15);color:var(--danger);font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,92,124,.3);}
+  .savings-goal-box{background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.15);border-radius:8px;padding:12px;margin-bottom:14px;}
+  .hint-text{font-size:11px;color:var(--accent);margin-top:4px;}
 </style>

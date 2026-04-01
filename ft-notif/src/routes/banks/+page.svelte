@@ -16,7 +16,19 @@
   let fName = '', fBalance = '';
   let eName = '', eBalance = '';
 
-  onMount(load);
+  let shortageMap = {}; // bank_id → shortage amount
+
+  onMount(async () => {
+    await load();
+    // Check goal shortages to show bank-level badge
+    try {
+      const goals = await api.get('/goals');
+      goals.filter(g=>g.has_shortage && g.bank_id).forEach(g => {
+        shortageMap[g.bank_id] = (shortageMap[g.bank_id]||0) + Number(g.shortage_amount);
+      });
+      shortageMap = {...shortageMap}; // trigger reactivity
+    } catch(e) {}
+  });
 
   async function load() {
     loading = true;
@@ -298,6 +310,9 @@
               <button class="icon-btn danger" on:click|stopPropagation={() => deleteBank(b.id)} title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
             </div>
             <p class="bank-bal mono">{fmt(b.balance)}</p>
+            {#if shortageMap[b.id]}
+              <p class="shortage-tag">⚠️ RM {Number(shortageMap[b.id]).toFixed(2)} savings shortage</p>
+            {/if}
             <p class="view-stmt">View Statement →</p>
           </button>
         {/each}

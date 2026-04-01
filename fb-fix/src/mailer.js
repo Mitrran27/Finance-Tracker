@@ -22,26 +22,11 @@ dotenv.config();
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST   || 'smtp.gmail.com',
   port:   Number(process.env.SMTP_PORT || 587),
-  // secure: process.env.SMTP_SECURE === 'true',
-  secure: false, // Gmail uses TLS on port 587
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  //===============================
-    tls: {
-      rejectUnauthorized: false, // Important for Render/Gmail
-    },
-  });
-
-  // Verify SMTP connection on startup
-  transporter.verify(function (error, success) {
-    if (error) {
-      console.error('[mailer] SMTP connection error:', error);
-    } else {
-      console.log('[mailer] SMTP server is ready to send emails');
-    }
-  //===============================
 });
 
 /**

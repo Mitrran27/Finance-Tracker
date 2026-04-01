@@ -13,7 +13,7 @@
     { href: '/drive',        label: 'Drive',         icon: 'drive' },
     { href: '/calendar',     label: 'Calendar',      icon: 'calendar',    tooltip: 'Email reminders may not work because current hosting blocks Gmail SMTP.' },
     { href: '/notes',        label: 'Notes',         icon: 'note' },
-    { href: '/goals',        label: 'Goals',         icon: 'goals',       badge: 'COMING SOON'},
+    { href: '/goals',        label: 'Goals',         icon: 'goals' },
     { href: '/investments',  label: 'Investments',   icon: 'investments', badge: 'COMING SOON'},
     { href: '/settings',     label: 'Settings',      icon: 'settings' },
   ];
@@ -108,7 +108,7 @@
 <style>
   .sidebar { width:240px; height:100%; flex-shrink:0; display:flex; flex-direction:column; background:var(--surface); border-right:1px solid var(--border); }
   .logo-row { padding:20px; display:flex; align-items:center; gap:12px; }
-  .logo-icon { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  /* .logo-icon { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; flex-shrink:0; } */
   .logo-text { font-weight:700; font-size:14px; }
   nav { flex:1; padding:8px 12px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
   .nav-item { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; transition:all .2s; color:var(--text2); font-size:14px; font-weight:500; text-decoration:none; }

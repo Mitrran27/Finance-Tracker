@@ -3,7 +3,6 @@
   import { api } from '$lib/api.js';
   import { showToast } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
-  import InfoTooltip from '../../lib/components/InfoTooltip.svelte';
 
   // ── Today: always use LOCAL date, never UTC ──────────────────────────────
   // toISOString() returns UTC which breaks Malaysia time (UTC+8).
@@ -29,7 +28,7 @@
   const TODAY_COLOR = '#00e5a0';
 
   // ── State ────────────────────────────────────────────────────────────────
-  let events = [], loading = true;
+  let events = [], notes = [], loading = true;
   let showAdd = false;
   let fTitle = '', fDate = '';
 
@@ -64,7 +63,12 @@
 
   async function load() {
     loading = true;
-    try { events = await api.get('/events'); }
+    try {
+      [events, notes] = await Promise.all([
+        api.get('/events'),
+        api.get('/notes'),
+      ]);
+    }
     catch(e) { showToast(e.message, 'error'); }
     finally { loading = false; }
   }
@@ -122,18 +126,29 @@
     return Math.ceil((ev - td) / 86400000);
   }
 
-  // Events keyed by YYYY-MM-DD → array of {ev, colorIdx}
-  // colorIdx is stable per event id so colour doesn't change on re-render
+  // Events + notes keyed by YYYY-MM-DD → array of items
   $: eventsByDate = (() => {
     const map = {};
     events.forEach((ev, idx) => {
       const d = normalizeDate(ev.date);
       if (!d) return;
       if (!map[d]) map[d] = [];
-      map[d].push({ ...ev, colorIdx: idx % EVENT_COLORS.length });
+      map[d].push({ ...ev, colorIdx: idx % EVENT_COLORS.length, itemType: 'event' });
+    });
+    // Add notes with due dates — use fixed purple color to distinguish
+    notes.filter(n => n.date && !n.completed).forEach((n, idx) => {
+      const d = normalizeDate(n.date);
+      if (!d) return;
+      if (!map[d]) map[d] = [];
+      map[d].push({ ...n, title: n.text, colorIdx: (events.length + idx) % EVENT_COLORS.length, itemType: 'note' });
     });
     return map;
   })();
+
+  // Notes for selected month panel
+  $: selectedMonthNotes = notes
+    .filter(n => n.date && normalizeDate(n.date).startsWith(_selectedMonth) && !n.completed)
+    .sort((a,b) => normalizeDate(a.date).localeCompare(normalizeDate(b.date)));
 
   $: selectedMonthEvents = events
     .filter(e => normalizeDate(e.date).startsWith(_selectedMonth))
@@ -275,9 +290,30 @@
       </div>
     {/if}
 
-    {#if selectedMonthEvents.length === 0}
+    {#if selectedMonthNotes.length > 0}
+      <div>
+        <p class="section-label note-label">📝 NOTES DUE</p>
+        <div class="ev-list">
+          {#each selectedMonthNotes as note}
+            <div class="glass2 ev-card note-card-cal">
+              <div class="ev-stripe" style="background:#ff9ff3"></div>
+              <div class="ev-date">
+                <span class="ev-mon">{formatMonth(note.date)}</span>
+                <span class="ev-day">{formatDay(note.date)}</span>
+              </div>
+              <div class="ev-info">
+                <p class="ev-title">{note.text}</p>
+                <p class="ev-sub">📝 Note due date</p>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    {#if selectedMonthEvents.length === 0 && selectedMonthNotes.length === 0}
       <div class="glass empty-state">
-        <p>No events this month</p>
+        <p>No events or notes this month</p>
         <p class="empty-hint">Click any date on the calendar to add one</p>
       </div>
     {/if}
@@ -295,10 +331,7 @@
     <input id="ev-date" class="input-field" type="date" bind:value={fDate}>
   </div>
   <div class="form-group">
-  <div style="display:flex;align-items:center;">
     <label for="ev-email">Send Reminder To</label>
-    <InfoTooltip text="Current hosting provider does not allow Gmail SMTP. Email reminders may not be delivered. We're working on it — stay tuned!" />
-  </div>
     {#if reminderEmails.length > 0}
       <select id="ev-email" class="input-field" bind:value={fEmail}>
         {#each reminderEmails as email, i}
@@ -450,4 +483,6 @@
   .form-group    { margin-bottom:14px; }
   .modal-actions { display:flex; gap:8px; margin-top:20px; }
   .modal-hint    { font-size:11px; color:var(--text2); margin-top:5px; }
+  .note-label    { color:#ff9ff3 !important; }
+  .note-card-cal { opacity:.9; }
 </style>

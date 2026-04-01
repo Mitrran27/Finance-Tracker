@@ -6,16 +6,6 @@ import { sendEmail, buildReminderEmail } from '../mailer.js';
 const router = Router();
 router.use(authenticate);
 
-function localToday() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-function fmtDate(d) {
-  const s = String(d).slice(0,10);
-  const [y,m,day] = s.split('-').map(Number);
-  return new Date(y,m-1,day).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-}
-
 router.get('/', async (req, res) => {
   try {
     const { month } = req.query;
@@ -32,59 +22,71 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { title, date, reminder_email } = req.body;
-    if (!title || !date) return res.status(400).json({ error: 'title and date required' });
+    const { title, date } = req.body;
+    if (!title || !date) return res.status(400).json({ error: 'title and date are required' });
 
+    // Insert event
     const [event] = await sql`
       INSERT INTO events (user_id, title, date)
       VALUES (${req.userId}, ${title}, ${date})
       RETURNING *
     `;
 
-    // ── Resolve recipient email ──────────────────────────────────────────
-    // Priority:
-    //   1. reminder_email explicitly passed from the calendar dropdown
-    //   2. reminder_emails list (first extra, if any)
-    //   3. user's signup email (always the fallback)
+    // Fetch user info + reminder_email setting
     const [user] = await sql`SELECT id, name, email FROM users WHERE id = ${req.userId}`;
+    const [setting] = await sql`
+      SELECT value FROM settings WHERE user_id = ${req.userId} AND key = 'reminder_email'
+    `;
+    // Priority: settings reminder_email → signup email
+    const toEmail = (setting?.value && setting.value.trim()) ? setting.value.trim() : user.email;
 
-    let toEmail = user.email; // default: signup email
+    // Today as local date string
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
-    if (reminder_email && reminder_email.trim()) {
-      // Calendar modal passed a specific chosen email
-      toEmail = reminder_email.trim();
-    } else {
-      // Check if user has a reminder_emails list saved
-      const [row] = await sql`
-        SELECT value FROM settings WHERE user_id = ${req.userId} AND key = 'reminder_emails'
-      `;
-      if (row?.value) {
-        const extras = JSON.parse(row.value);
-        if (extras.length > 0) toEmail = extras[0]; // use first extra if no explicit choice
-      }
+    const eventDate = new Date(date + 'T12:00:00');
+    const offsets = [
+      { days: 1, label: '1 day'  },
+      { days: 3, label: '3 days' },
+      { days: 7, label: '1 week' },
+    ];
+
+    function fmtDate(d) {
+      const s = String(d).slice(0, 10);
+      const [y, m, day] = s.split('-').map(Number);
+      return new Date(y, m-1, day).toLocaleDateString('en-GB', {
+        weekday:'long', day:'numeric', month:'long', year:'numeric'
+      });
     }
 
-    const todayStr = localToday();
-    const offsets  = [{ days:1, label:'1 day' }, { days:3, label:'3 days' }, { days:7, label:'1 week' }];
-
     for (const { days, label } of offsets) {
-      // Parse date string directly — never use new Date(string) to avoid UTC shifts
-      const [ey, em, ed] = String(date).slice(0,10).split('-').map(Number);
-      // Use Date(year, month-1, day) constructor — always local, never UTC
-      const base = new Date(ey, em - 1, ed - days);
-      const rdStr = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+      const rd = new Date(eventDate);
+      rd.setDate(rd.getDate() - days);
+      const y  = rd.getFullYear();
+      const m  = String(rd.getMonth()+1).padStart(2,'0');
+      const d  = String(rd.getDate()).padStart(2,'0');
+      const rdStr = `${y}-${m}-${d}`;
 
       if (rdStr >= todayStr) {
+        // Create in-app notification
+        const notifText = `Reminder: "${title}" is in ${label} (${date}) — email will be sent to ${toEmail}`;
         await sql`
-          INSERT INTO notifications (user_id, text, date) VALUES (
-            ${req.userId},
-            ${`Reminder: "${title}" is in ${label} (${date}) — email → ${toEmail}`},
-            ${rdStr}
-          )
+          INSERT INTO notifications (user_id, text, date)
+          VALUES (${req.userId}, ${notifText}, ${rdStr})
         `;
+
+        // If the reminder date is TODAY, send the email immediately
         if (rdStr === todayStr) {
-          sendEmail(toEmail, `Reminder: "${title}" is ${days===1?'tomorrow':`in ${days} days`}`,
-            buildReminderEmail({ userName:user.name, title, eventDate:fmtDate(date), daysAway:days, type:'event' })
+          sendEmail(
+            toEmail,
+            `Reminder: "${title}" is ${days === 1 ? 'tomorrow' : `in ${days} days`}`,
+            buildReminderEmail({
+              userName:  user.name,
+              title,
+              eventDate: fmtDate(date),
+              daysAway:  days,
+              type:      'event',
+            })
           ).catch(console.error);
         }
       }
@@ -96,8 +98,10 @@ router.post('/', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const [deleted] = await sql`DELETE FROM events WHERE id=${req.params.id} AND user_id=${req.userId} RETURNING id`;
-    if (!deleted) return res.status(404).json({ error: 'Not found' });
+    const [deleted] = await sql`
+      DELETE FROM events WHERE id = ${req.params.id} AND user_id = ${req.userId} RETURNING id
+    `;
+    if (!deleted) return res.status(404).json({ error: 'Event not found' });
     res.json({ message: 'Deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
