@@ -31,13 +31,13 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { bank_id, type, amount, description, category, date, is_savings = false } = req.body;
+    const { bank_id, type, amount, description, category, date, is_savings = false, goal_id } = req.body;
     if (!type || !amount || !date)
       return res.status(400).json({ error: 'type, amount and date are required' });
 
     const [tx] = await sql`
-      INSERT INTO transactions (user_id, bank_id, type, amount, description, category, date, is_savings)
-      VALUES (${req.userId}, ${bank_id ?? null}, ${type}, ${amount}, ${description ?? null}, ${category ?? null}, ${date}, ${is_savings})
+      INSERT INTO transactions (user_id, bank_id, type, amount, description, category, date, is_savings, goal_id)
+      VALUES (${req.userId}, ${bank_id ?? null}, ${type}, ${amount}, ${description ?? null}, ${category ?? null}, ${date}, ${is_savings}, ${goal_id ?? null})
       RETURNING *
     `;
 
@@ -47,6 +47,18 @@ router.post('/', async (req, res) => {
         await sql`UPDATE bank_accounts SET balance = balance + ${amount} WHERE id = ${bank_id} AND user_id = ${req.userId}`;
       } else if (type === 'expense') {
         await sql`UPDATE bank_accounts SET balance = balance - ${amount} WHERE id = ${bank_id} AND user_id = ${req.userId}`;
+      }
+    }
+
+    // Auto-contribute to goal when flagged as savings and a goal is selected
+    if (is_savings && goal_id) {
+      const [goal] = await sql`SELECT * FROM savings_goals WHERE id = ${goal_id} AND user_id = ${req.userId}`;
+      if (goal) {
+        await sql`
+          INSERT INTO goal_transactions (goal_id, user_id, tx_id, amount, note)
+          VALUES (${goal_id}, ${req.userId}, ${tx.id}, ${amount}, ${description ?? null})
+        `;
+        await sql`UPDATE savings_goals SET current = current + ${amount} WHERE id = ${goal_id} AND user_id = ${req.userId}`;
       }
     }
 

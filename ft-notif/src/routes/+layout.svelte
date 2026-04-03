@@ -11,6 +11,17 @@
   let ready = false;
   const publicRoutes = ['/auth'];
 
+  // ── Fun loading texts ─────────────────────────────────────────────────────
+  const loadingTexts = [
+    "🍔 Flipping data patties for burgers...",
+    "🍕 Heating up data pizzas...",
+    "🍦 Scooping data ice creams...",
+    "🥤 Shaking data milkshakes...",
+    "🍟 Frying up hashed data...",
+    "☕️ Brewing fresh data coffee beans...",
+  ];
+  let loadingText = loadingTexts[Math.floor(Math.random() * loadingTexts.length)];
+
   // ── Live clock ────────────────────────────────────────────────────────────
   let now = new Date();
   let clockInterval;
@@ -83,7 +94,7 @@
 
 {#if !ready}
   <div class="loading-screen">
-    <div class="spinner"></div>
+    <div class="loading-text-anim">{loadingText}</div>
   </div>
 {:else if isPublic}
   <slot />
@@ -128,14 +139,17 @@
     align-items: center; justify-content: center;
     background: var(--bg);
   }
-  .spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin .7s linear infinite;
+  .loading-text-anim {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--accent);
+    animation: pulse-fade 1.4s ease-in-out infinite;
+    letter-spacing: 0.3px;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse-fade {
+    0%, 100% { opacity: 0.4; transform: scale(0.98); }
+    50%       { opacity: 1;   transform: scale(1.02); }
+  }
 
   .app-shell { display: flex; height: 100vh; width: 100%; overflow: hidden; }
   .main-col  { flex: 1; display: flex; flex-direction: column; overflow: hidden; }

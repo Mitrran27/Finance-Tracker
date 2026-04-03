@@ -42,7 +42,7 @@
 
   <div class="notif-list">
     {#if loading}
-      <div class="glass2 empty-state">Loading…</div>
+      <div class="glass2 empty-state">🍔 Flipping data patties for burgers...</div>
     {:else if notifs.length === 0}
       <div class="glass empty-state">
         <p>No notifications</p>

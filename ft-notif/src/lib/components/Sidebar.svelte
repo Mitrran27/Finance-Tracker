@@ -13,7 +13,7 @@
     { href: '/drive',        label: 'Drive',         icon: 'drive' },
     { href: '/calendar',     label: 'Calendar',      icon: 'calendar',    tooltip: 'Email reminders may not work because current hosting blocks Gmail SMTP.' },
     { href: '/notes',        label: 'Notes',         icon: 'note' },
-    { href: '/goals',        label: 'Goals',         icon: 'goals',       badge: 'COMING SOON'},
+    { href: '/goals',        label: 'Goals',         icon: 'goals',       badge: 'NEW'},
     { href: '/investments',  label: 'Investments',   icon: 'investments', badge: 'COMING SOON'},
     { href: '/settings',     label: 'Settings',      icon: 'settings' },
   ];

@@ -12,6 +12,7 @@ import notesRoutes         from './routes/notes.js';
 import notificationsRoutes from './routes/notifications.js';
 import settingsRoutes      from './routes/settings.js';
 import overviewRoutes      from './routes/overview.js';
+import goalsRoutes         from './routes/goals.js';
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use('/api/notes',         notesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/settings',      settingsRoutes);
 app.use('/api/overview',      overviewRoutes);
+app.use('/api/goals',      goalsRoutes);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

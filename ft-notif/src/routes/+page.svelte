@@ -146,7 +146,7 @@
 
 <div class="fade-in space">
   {#if loading}
-    <div class="loading">Loading…</div>
+    <div class="loading">🍕 Heating up data pizzas...</div>
   {:else if data}
 
   <!-- Month selector -->
@@ -158,7 +158,7 @@
       {/each}
     </select>
     {#if monthLoading}
-      <span class="month-loading">Loading…</span>
+      <span class="month-loading">🥤 Shaking data milkshakes...</span>
     {/if}
   </div>
 

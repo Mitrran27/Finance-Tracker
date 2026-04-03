@@ -276,7 +276,7 @@
       </div>
       <div class="tscroll">
         {#if stmtLoading}
-          <p class="empty">Loading…</p>
+          <p class="empty">🍟 Frying up hashed data...</p>
         {:else if stmtTxs.length === 0}
           <p class="empty">No transactions in this period</p>
         {:else}

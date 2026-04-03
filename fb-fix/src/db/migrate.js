@@ -141,6 +141,52 @@ async function migrate() {
     )
   `;
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS savings_goals (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        bank_id     INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL,
+        name        VARCHAR(255) NOT NULL,
+        target      NUMERIC(12,2) NOT NULL DEFAULT 0,
+        current     NUMERIC(12,2) NOT NULL DEFAULT 0,
+        deadline    DATE,
+        color       VARCHAR(20) DEFAULT '#00e5a0',
+        has_shortage BOOLEAN DEFAULT FALSE,
+        shortage_amount NUMERIC(12,2) DEFAULT 0,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS goal_transactions (
+        id          SERIAL PRIMARY KEY,
+        goal_id     INTEGER NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tx_id       INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+        amount      NUMERIC(12,2) NOT NULL,
+        note        VARCHAR(255),
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    
+      // Safely add new columns if upgrading existing DB
+    try {
+      await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS bank_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL`;
+    } catch (e) {}
+    
+    try {
+      await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS has_shortage BOOLEAN DEFAULT FALSE`;
+    } catch (e) {}
+    
+    try {
+      await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS shortage_amount NUMERIC(12,2) DEFAULT 0`;
+    } catch (e) {}
+    
+    try {
+      await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS goal_id INTEGER REFERENCES savings_goals(id) ON DELETE SET NULL`;
+    } catch (e) {}
+
   console.log('✅ All tables created successfully.');
   process.exit(0);
 }
