@@ -3,6 +3,7 @@
   import { api } from '$lib/api.js';
   import { fmt, showToast } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
+  import FunLoader from '$lib/components/FunLoader.svelte';
 
   const GOAL_COLORS = ['#00e5a0','#7c5cfc','#ff5c7c','#ffb347','#4ecdc4','#45b7d1','#ff9ff3','#54a0ff'];
 
@@ -10,6 +11,8 @@
   let showAdd = false, showEdit = false, showContribute = false, showTxs = false;
   let editGoal = null, contributeGoal = null, txGoal = null;
   let goalContribs = [];
+  let expandedGoalId = null;   // for inline contrib table per goal
+  let inlineContribs = {};     // cache: goalId → contribs array
 
   // Add form
   let fName='', fTarget='', fCurrent='', fDeadline='', fColor='#00e5a0', fBankId='';
@@ -91,6 +94,15 @@
     showTxs = true;
   }
 
+  async function toggleInline(g) {
+    if (expandedGoalId === g.id) { expandedGoalId = null; return; }
+    expandedGoalId = g.id;
+    if (!inlineContribs[g.id]) {
+      try { inlineContribs[g.id] = await api.get(`/goals/${g.id}/contributions`); }
+      catch(e) { inlineContribs[g.id] = []; }
+    }
+  }
+
   async function removeContrib(goalId, cid) {
     if (!confirm('Remove this contribution?')) return;
     try {
@@ -165,7 +177,7 @@
   {/if}
 
   {#if loading}
-    <div class="glass loading-card">Loading goals…</div>
+    <FunLoader />
   {:else if goals.length === 0}
     <div class="glass empty-state">
       <div class="empty-icon">🎯</div>
@@ -278,8 +290,49 @@
                 <span class="dl-label muted">No deadline</span>
               {/if}
             </div>
-            <button class="add-savings-btn" on:click={() => openContribute(g)}>+ Add Savings</button>
+            <div style="display:flex;gap:6px;align-items:center">
+              <button class="btn-txs" on:click={() => toggleInline(g)}>
+                {expandedGoalId === g.id ? '▲ Hide Txs' : '▼ Transactions'}
+              </button>
+              <button class="add-savings-btn" on:click={() => openContribute(g)}>+ Add Savings</button>
+            </div>
           </div>
+
+          <!-- Inline transactions table -->
+          {#if expandedGoalId === g.id}
+            <div class="inline-contribs">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span style="font-size:12px;font-weight:600;color:var(--text2)">Savings Transactions</span>
+                <button class="btn-secondary xs" on:click={() => downloadCSV(g)}>⬇ CSV</button>
+              </div>
+              {#if !inlineContribs[g.id] || inlineContribs[g.id].length === 0}
+                <p class="muted" style="text-align:center;padding:12px;font-size:12px">No contributions yet</p>
+              {:else}
+                <div class="contribs-table">
+                  <table>
+                    <thead>
+                      <tr><th>Date</th><th>Description</th><th>Note</th><th class="right">Amount</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {#each inlineContribs[g.id] as c}
+                        <tr>
+                          <td class="sm">{c.tx_date?.slice(0,10) || c.created_at?.slice(0,10)}</td>
+                          <td>{c.tx_description || 'Manual'}</td>
+                          <td class="muted-td">{c.note || '—'}</td>
+                          <td class="right mono pos">{fmt(c.amount)}</td>
+                          <td>
+                            <button class="icon-btn-sm" on:click={async () => { await removeContrib(g.id, c.id); inlineContribs[g.id] = inlineContribs[g.id].filter(x=>x.id!==c.id); }} title="Remove">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                            </button>
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/if}
+            </div>
+          {/if}
         </div>
       {/each}
     </div>
@@ -512,6 +565,9 @@
   .muted         { color:var(--text2); }
   .add-savings-btn { background:rgba(124,92,252,.12); border:1px solid rgba(124,92,252,.3); color:var(--accent2); padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; transition:background .15s; }
   .add-savings-btn:hover { background:rgba(124,92,252,.25); }
+  .btn-txs { background:rgba(255,255,255,.06); border:1px solid var(--border); color:var(--text2); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:11px; font-weight:600; transition:background .15s; }
+  .btn-txs:hover { background:rgba(255,255,255,.1); color:var(--text); }
+  .inline-contribs { border-top:1px solid var(--border); padding-top:12px; margin-top:4px; }
 
   /* Modal */
   .form-row      { display:grid; grid-template-columns:1fr 1fr; gap:12px; }

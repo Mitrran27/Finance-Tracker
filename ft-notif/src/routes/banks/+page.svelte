@@ -3,8 +3,9 @@
   import { api } from '$lib/api.js';
   import { fmt, showToast, BANKS_LIST, CATEGORIES, today } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
+  import FunLoader from '$lib/components/FunLoader.svelte';
 
-  let banks = [], loading = true;
+  let banks = [], goals = [], loading = true;
   let showAdd = false, showEdit = false;
   let editBank = null;
 
@@ -16,23 +17,13 @@
   let fName = '', fBalance = '';
   let eName = '', eBalance = '';
 
-  let shortageMap = {}; // bank_id → shortage amount
-
-  onMount(async () => {
-    await load();
-    // Check goal shortages to show bank-level badge
-    try {
-      const goals = await api.get('/goals');
-      goals.filter(g=>g.has_shortage && g.bank_id).forEach(g => {
-        shortageMap[g.bank_id] = (shortageMap[g.bank_id]||0) + Number(g.shortage_amount);
-      });
-      shortageMap = {...shortageMap}; // trigger reactivity
-    } catch(e) {}
-  });
+  onMount(load);
 
   async function load() {
     loading = true;
-    try { banks = await api.get('/banks'); }
+    try {
+      [banks, goals] = await Promise.all([api.get('/banks'), api.get('/goals').catch(()=>[])]);
+    }
     catch(e) { showToast(e.message, 'error'); }
     finally { loading = false; }
   }
@@ -234,7 +225,7 @@
       </div>
       <div class="tscroll">
         {#if stmtLoading}
-          <p class="empty">Loading…</p>
+          <FunLoader size="small" />
         {:else if stmtTxs.length === 0}
           <p class="empty">No transactions in this period</p>
         {:else}
@@ -297,12 +288,13 @@
     </div>
 
     {#if loading}
-      <p class="muted">Loading…</p>
+      <FunLoader />
     {:else if banks.length === 0}
       <div class="glass empty-state"><p>No bank accounts yet. Add one to get started.</p></div>
     {:else}
       <div class="bank-grid">
         {#each banks as b}
+          {@const shortage = goals.find(g => String(g.bank_id) === String(b.id) && g.has_shortage)}
           <button class="glass bank-card" on:click={() => openStatement(b)}>
             <div class="bank-top">
               <div class="bank-icon">🏦</div>
@@ -310,8 +302,10 @@
               <button class="icon-btn danger" on:click|stopPropagation={() => deleteBank(b.id)} title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
             </div>
             <p class="bank-bal mono">{fmt(b.balance)}</p>
-            {#if shortageMap[b.id]}
-              <p class="shortage-tag">⚠️ RM {Number(shortageMap[b.id]).toFixed(2)} savings shortage</p>
+            {#if shortage}
+              <div class="bank-shortage-badge">
+                ⚠️ Savings shortage: RM {Number(shortage.shortage_amount).toFixed(2)} short on "{shortage.name}"
+              </div>
             {/if}
             <p class="view-stmt">View Statement →</p>
           </button>
@@ -374,6 +368,7 @@
   .bank-name{font-weight:600;font-size:14px;flex:1;color: beige}
   .bank-bal{font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Mono',monospace;color: white}
   .view-stmt{font-size:11px;color:var(--accent);margin-top:4px;}
+  .bank-shortage-badge{margin:6px 0;padding:5px 10px;background:rgba(255,92,124,.12);border:1px solid rgba(255,92,124,.3);border-radius:6px;font-size:11px;font-weight:600;color:var(--danger);text-align:left;}
   .icon-btn{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.45);padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
   .icon-btn:hover{background:rgba(255,92,124,.12);color:var(--danger);}
 

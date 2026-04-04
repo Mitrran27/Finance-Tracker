@@ -3,6 +3,7 @@
   import { api } from '$lib/api.js';
   import { fmt, showToast, CATEGORIES, today } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
+  import FunLoader from '$lib/components/FunLoader.svelte';
 
   let cards=[], ccTxs=[], history=[], loading=true;
   let showAddCard=false, showAddTx=false;
@@ -276,7 +277,7 @@
       </div>
       <div class="tscroll">
         {#if stmtLoading}
-          <p class="empty">Loading…</p>
+          <FunLoader size="small" />
         {:else if stmtTxs.length === 0}
           <p class="empty">No transactions in this period</p>
         {:else}

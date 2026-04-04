@@ -43,9 +43,11 @@ router.post('/', async (req, res) => {
   try {
     const { name, target, current = 0, deadline, color = '#00e5a0', bank_id } = req.body;
     if (!name || !target) return res.status(400).json({ error: 'name and target required' });
+    // Convert "YYYY-MM" (month picker) to "YYYY-MM-01" for PostgreSQL DATE type
+    const deadlineDate = deadline ? (deadline.length === 7 ? deadline + '-01' : deadline) : null;
     const [goal] = await sql`
       INSERT INTO savings_goals (user_id, name, target, current, deadline, color, bank_id)
-      VALUES (${req.userId}, ${name}, ${target}, ${current}, ${deadline ?? null}, ${color}, ${bank_id ?? null})
+      VALUES (${req.userId}, ${name}, ${target}, ${current}, ${deadlineDate}, ${color}, ${bank_id ?? null})
       RETURNING *
     `;
     res.status(201).json(goal);
@@ -56,12 +58,13 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { name, target, current, deadline, color, bank_id } = req.body;
+    const deadlineDate = deadline ? (deadline.length === 7 ? deadline + '-01' : deadline) : null;
     const [goal] = await sql`
       UPDATE savings_goals SET
         name      = COALESCE(${name     ?? null}, name),
         target    = COALESCE(${target   ?? null}, target),
         current   = COALESCE(${current  ?? null}, current),
-        deadline  = COALESCE(${deadline ?? null}::date, deadline),
+        deadline  = COALESCE(${deadlineDate ?? null}::date, deadline),
         color     = COALESCE(${color    ?? null}, color),
         bank_id   = COALESCE(${bank_id  ?? null}, bank_id)
       WHERE id = ${req.params.id} AND user_id = ${req.userId}
@@ -89,9 +92,38 @@ router.post('/:id/contribute', async (req, res) => {
     const [goal] = await sql`SELECT * FROM savings_goals WHERE id = ${req.params.id} AND user_id = ${req.userId}`;
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
 
+    let resolvedTxId = tx_id ?? null;
+
+    // If no existing transaction is linked, create one so it shows in Transactions page
+    if (!tx_id) {
+      const today = new Date().toISOString().slice(0, 10);
+      const desc  = note || `Savings: ${goal.name}`;
+      const [newTx] = await sql`
+        INSERT INTO transactions (user_id, bank_id, type, amount, description, category, date, is_savings, goal_id)
+        VALUES (
+          ${req.userId},
+          ${goal.bank_id ?? null},
+          'income',
+          ${amount},
+          ${desc},
+          'Savings',
+          ${today},
+          true,
+          ${req.params.id}
+        )
+        RETURNING *
+      `;
+      resolvedTxId = newTx.id;
+
+      // Also update the bank balance if a bank is linked to the goal
+      if (goal.bank_id) {
+        await sql`UPDATE bank_accounts SET balance = balance + ${amount} WHERE id = ${goal.bank_id} AND user_id = ${req.userId}`;
+      }
+    }
+
     await sql`
       INSERT INTO goal_transactions (goal_id, user_id, tx_id, amount, note)
-      VALUES (${req.params.id}, ${req.userId}, ${tx_id ?? null}, ${amount}, ${note ?? null})
+      VALUES (${req.params.id}, ${req.userId}, ${resolvedTxId}, ${amount}, ${note ?? null})
     `;
 
     const [updated] = await sql`
@@ -100,9 +132,9 @@ router.post('/:id/contribute', async (req, res) => {
       RETURNING *
     `;
 
-    // If linking a transaction, mark it with this goal
+    // If linking an existing transaction, mark it with this goal
     if (tx_id) {
-      await sql`UPDATE transactions SET goal_id = ${req.params.id} WHERE id = ${tx_id} AND user_id = ${req.userId}`;
+      await sql`UPDATE transactions SET goal_id = ${req.params.id}, is_savings = true WHERE id = ${tx_id} AND user_id = ${req.userId}`;
     }
 
     res.json(updated);
@@ -123,9 +155,19 @@ router.delete('/:id/contributions/:cid', async (req, res) => {
       UPDATE savings_goals SET current = GREATEST(0, current - ${row.amount})
       WHERE id = ${req.params.id} AND user_id = ${req.userId}
     `;
-    // Unlink transaction
+    // If the tx was auto-created by a goal contribution (is_savings=true, no manual link), delete it too
     if (row.tx_id) {
-      await sql`UPDATE transactions SET goal_id = NULL WHERE id = ${row.tx_id} AND user_id = ${req.userId}`;
+      const [tx] = await sql`SELECT * FROM transactions WHERE id = ${row.tx_id} AND user_id = ${req.userId}`;
+      if (tx && tx.is_savings && tx.goal_id == req.params.id) {
+        // Reverse bank balance if needed
+        if (tx.bank_id) {
+          await sql`UPDATE bank_accounts SET balance = balance - ${tx.amount} WHERE id = ${tx.bank_id} AND user_id = ${req.userId}`;
+        }
+        await sql`DELETE FROM transactions WHERE id = ${row.tx_id} AND user_id = ${req.userId}`;
+      } else {
+        // Just unlink
+        await sql`UPDATE transactions SET goal_id = NULL, is_savings = false WHERE id = ${row.tx_id} AND user_id = ${req.userId}`;
+      }
     }
     res.json({ message: 'Removed' });
   } catch (err) { res.status(500).json({ error: err.message }); }

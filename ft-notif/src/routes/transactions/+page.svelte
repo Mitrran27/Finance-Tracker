@@ -3,15 +3,15 @@
   import { api } from '$lib/api.js';
   import { fmt, showToast, CATEGORIES, today } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
+  import FunLoader from '$lib/components/FunLoader.svelte';
 
   let txs = [], banks = [], goals = [], loading = true;
-  let shortageGoals = [];
   let showAdd = false, showEdit = false;
   let editTx = null;
   let search = '', filterBank = '', dateFrom = '', dateTo = '', sort = 'date-desc';
 
-  let fType='expense', fAmount='', fDesc='', fCat='Food', fDate=today(), fBank='', fSavings=false, fGoalId='', fSavingsAmount='';
-  let eType='expense', eAmount='', eDesc='', eCat='Food', eDate=today(), eBank='', eSavings=false;
+  let fType='expense', fAmount='', fDesc='', fCat='Food', fDate=today(), fBank='', fSavings=false, fGoalId='';
+  let eType='expense', eAmount='', eDesc='', eCat='Food', eDate=today(), eBank='', eSavings=false, eGoalId='';
 
   function getBankSummary(bank) {
     const d = new Date();
@@ -25,22 +25,18 @@
     const finalBal   = Number(bank.balance);
     // Original = what it was before this month's income/expenses
     const originalBal = finalBal - inc + exp;
-    return { inc, exp, sav, finalBal, originalBal };
+    // Total = original + income (before any expenses)
+    const totalBal = originalBal + inc;
+    // Usable = final balance minus locked savings
+    const usableBal = finalBal - sav;
+    return { inc, exp, sav, finalBal, originalBal, totalBal, usableBal };
   }
 
   onMount(async () => {
-    [banks, goals] = await Promise.all([api.get('/banks'), api.get('/goals')]);
+    [banks, goals] = await Promise.all([api.get('/banks'), api.get('/goals').catch(()=>[])]);
     if (banks.length) fBank = banks[0].id;
     await loadTxs();
-    checkShortages();
   });
-
-  async function checkShortages() {
-    try {
-      const res = await api.post('/goals/check-shortage', {});
-      shortageGoals = res.shortages || [];
-    } catch(e) { /* silent */ }
-  }
 
   async function loadTxs() {
     loading = true;
@@ -64,13 +60,10 @@
       await api.post('/transactions', {
         type: fType, amount: parseFloat(fAmount), description: fDesc,
         category: fCat, date: fDate, bank_id: fBank || null, is_savings: fSavings,
-        goal_id: fSavings && fGoalId ? parseInt(fGoalId) : null,
-        savings_amount: fSavings && fSavingsAmount ? parseFloat(fSavingsAmount) : 0,
+        goal_id: (fSavings && fGoalId) ? fGoalId : null
       });
       showToast('Transaction added!');
-      showAdd = false; fAmount=''; fDesc=''; fSavings=false; fGoalId=''; fSavingsAmount='';
-      goals = await api.get('/goals');
-      checkShortages();
+      showAdd = false; fAmount=''; fDesc=''; fSavings=false; fGoalId='';
       banks = await api.get('/banks');
       loadTxs();
     } catch(e) { showToast(e.message, 'error'); }
@@ -80,7 +73,7 @@
     editTx = tx;
     eType=tx.type; eAmount=tx.amount; eDesc=tx.description||'';
     eCat=tx.category||'Food'; eDate=tx.date?.slice(0,10)||today();
-    eBank=tx.bank_id||''; eSavings=tx.is_savings||false;
+    eBank=tx.bank_id||''; eSavings=tx.is_savings||false; eGoalId=tx.goal_id||'';
     showEdit = true;
   }
 
@@ -88,7 +81,8 @@
     try {
       await api.patch(`/transactions/${editTx.id}`, {
         type: eType, amount: parseFloat(eAmount), description: eDesc,
-        category: eCat, date: eDate, bank_id: eBank || null, is_savings: eSavings
+        category: eCat, date: eDate, bank_id: eBank || null, is_savings: eSavings,
+        goal_id: (eSavings && eGoalId) ? eGoalId : null
       });
       showToast('Transaction updated!');
       showEdit = false; editTx = null;
@@ -110,6 +104,29 @@
   function bankName(id) { return banks.find(b => b.id == id)?.name || '-'; }
 
   function clearDates() { dateFrom=''; dateTo=''; loadTxs(); }
+
+  $: shortageGoals = goals.filter(g => g.has_shortage);
+
+  // Compute which expense transactions dipped into savings
+  // For each bank: usable = finalBalance - savings. Walk expenses oldest→newest.
+  // If a cumulative expense run exceeds usable, flag those transactions.
+  $: savingsDipTxIds = (() => {
+    const dipped = new Set();
+    for (const bank of banks) {
+      const s = getBankSummary(bank);
+      if (s.sav <= 0) continue;
+      // All expenses for this bank sorted oldest first
+      const expenses = txs
+        .filter(t => String(t.bank_id) === String(bank.id) && t.type === 'expense')
+        .slice().sort((a,b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+      let runningBalance = s.usableBal + expenses.reduce((sum,t) => sum + Number(t.amount), 0);
+      for (const t of expenses) {
+        runningBalance -= Number(t.amount);
+        if (runningBalance < 0) dipped.add(t.id);
+      }
+    }
+    return dipped;
+  })();
 
   function downloadCSV() {
     const rows = [['Date','Description','Category','Type','Bank','Amount']];
@@ -141,7 +158,8 @@
       const bg = i%2===0?'#fff':'#fafafa';
       const cat = tx.category?` <span style="color:#999;font-size:11px;"> — ${tx.category}</span>`:'';
       const isIn = tx.type==='income';
-      return `<tr style="background:${bg}"><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#666;font-family:monospace;font-size:12px;width:72px">${fmtShort(tx.date)}</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#333">${tx.description||'—'}${cat}</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px">${tx.bank_name||bankName(tx.bank_id)||'—'}</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-family:monospace;white-space:nowrap;color:${isIn?'#999':'#c0392b'};font-weight:${isIn?'400':'600'}">${isIn?'—':f(tx.amount)}</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-family:monospace;white-space:nowrap;color:${isIn?'#27ae60':'#999'};font-weight:${isIn?'600':'400'}">${isIn?f(tx.amount):'—'}</td></tr>`;
+      const dipNote = savingsDipTxIds.has(tx.id) ? ` <span style="color:#e74c3c;font-size:10px;font-weight:700;background:#fdf4f4;padding:1px 6px;border-radius:4px;margin-left:4px">⚠️ Used savings</span>` : '';
+      return `<tr style="background:${bg}"><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#666;font-family:monospace;font-size:12px;width:72px">${fmtShort(tx.date)}</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#333">${tx.description||'—'}${cat}${dipNote}</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px">${tx.bank_name||bankName(tx.bank_id)||'—'}</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-family:monospace;white-space:nowrap;color:${isIn?'#999':'#c0392b'};font-weight:${isIn?'400':'600'}">${isIn?'—':f(tx.amount)}</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-family:monospace;white-space:nowrap;color:${isIn?'#27ae60':'#999'};font-weight:${isIn?'600':'400'}">${isIn?f(tx.amount):'—'}</td></tr>`;
     }).join('');
     const genDate = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Transaction Statement</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;background:#f0f2f5;padding:24px}@media print{body{background:#fff;padding:0}}</style></head><body><div style="max-width:860px;margin:0 auto;background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.08);border-radius:4px;overflow:hidden"><div style="height:8px;background:#1a5276"></div><div style="padding:28px 36px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee"><div><div style="font-size:26px;font-weight:700;color:#c0392b">Transaction Statement</div><div style="font-size:12px;color:#888;margin-top:2px">${selectedBankName}</div></div><div style="width:56px;height:56px;border-radius:50%;background:#c0392b;display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;font-weight:700">T</div></div><div style="background:#f5f6f8;padding:16px 36px;display:flex;gap:32px;border-bottom:1px solid #e8e8e8"><div style="flex:1"><div style="font-size:9px;text-transform:uppercase;color:#999;letter-spacing:1px;font-weight:600">Account</div><div style="font-size:14px;font-weight:600;color:#333;margin-top:3px">${selectedBankName}</div></div><div style="flex:1"><div style="font-size:9px;text-transform:uppercase;color:#999;letter-spacing:1px;font-weight:600">Period</div><div style="font-size:14px;font-weight:600;color:#333;margin-top:3px">${fmtD(dateFrom)||'All'} – ${fmtD(dateTo)||'All'}</div></div><div style="flex:1"><div style="font-size:9px;text-transform:uppercase;color:#999;letter-spacing:1px;font-weight:600">Generated On</div><div style="font-size:14px;font-weight:600;color:#333;margin-top:3px">${genDate}</div></div></div><div style="padding:24px 36px 20px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#c0392b;margin-bottom:14px">Summary</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"><div style="background:#f4faf5;border:1px solid #d4edda;border-radius:6px;padding:14px 16px;text-align:center"><div style="font-size:9px;text-transform:uppercase;color:#999;letter-spacing:.8px;font-weight:600">Total Income</div><div style="font-size:18px;font-weight:700;color:#27ae60;margin-top:6px;font-family:monospace">${f(income)}</div></div><div style="background:#fdf4f4;border:1px solid #f5c6cb;border-radius:6px;padding:14px 16px;text-align:center"><div style="font-size:9px;text-transform:uppercase;color:#999;letter-spacing:.8px;font-weight:600">Total Expenses</div><div style="font-size:18px;font-weight:700;color:#c0392b;margin-top:6px;font-family:monospace">${f(expense)}</div></div><div style="background:#fef9f3;border:1px solid #f5e6d3;border-radius:6px;padding:14px 16px;text-align:center"><div style="font-size:9px;text-transform:uppercase;color:#999;letter-spacing:.8px;font-weight:600">Transactions</div><div style="font-size:18px;font-weight:700;color:#333;margin-top:6px">${txs.length}</div></div></div></div><div style="padding:0 36px 28px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#c0392b"><th style="padding:10px 14px;text-align:left;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:72px">Date</th><th style="padding:10px 14px;text-align:left;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Description</th><th style="padding:10px 14px;text-align:left;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:120px">Account</th><th style="padding:10px 14px;text-align:right;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:120px">Withdrawal</th><th style="padding:10px 14px;text-align:right;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:120px">Deposit</th></tr></thead><tbody>${txRows}</tbody></table></div><div style="background:#f5f6f8;padding:16px 36px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e8e8e8"><div><span style="color:#999;font-size:11px">Computer-generated statement. ${txs.length} transaction${txs.length!==1?'s':''} shown.</span></div><div style="color:#aaa;font-size:10px;font-family:monospace">Printed: ${genDate}</div></div></div></body></html>`;
@@ -153,18 +171,31 @@
 
 <div class="fade-in space">
   <div class="page-hdr">
-    <div style="display:flex;align-items:center;gap:10px">
-      <p class="count">{txs.length} transaction{txs.length !== 1 ? 's' : ''}</p>
+    <p class="count">
+      {txs.length} transaction{txs.length !== 1 ? 's' : ''}
       {#if shortageGoals.length > 0}
-        <span class="shortage-badge">⚠️ {shortageGoals.length} Savings Shortage{shortageGoals.length>1?'s':''}</span>
+        <span class="shortage-badge-inline">⚠️ {shortageGoals.length} savings shortage{shortageGoals.length>1?'s':''}</span>
       {/if}
-    </div>
+    </p>
     <div style="display:flex;gap:8px">
       <button class="btn-secondary" on:click={downloadCSV}>⬇ CSV</button>
       <button class="btn-secondary" on:click={printStatement}>🖨 Print Statement</button>
       <button class="btn-primary" on:click={() => showAdd=true}>+ Add Transaction</button>
     </div>
   </div>
+
+  <!-- Shortage alert banner -->
+  {#if shortageGoals.length > 0}
+    <div class="shortage-banner">
+      <span class="shortage-icon">⚠️</span>
+      <div>
+        <p class="shortage-title">Savings Shortage Reminder</p>
+        <p class="shortage-desc">
+          {shortageGoals.map(g=>`${g.name} (RM ${Number(g.shortage_amount).toFixed(2)} short)`).join(' · ')} — please top up your savings to cover the shortage.
+        </p>
+      </div>
+    </div>
+  {/if}
 
   <!-- Filters -->
   <div class="glass filters">
@@ -215,6 +246,15 @@
             <div class="summary-row"><span class="pos">+ Income:</span><span class="mono fw pos">+{fmt(s.inc)}</span></div>
             <div class="summary-row"><span class="neg">− Expenses:</span><span class="mono fw neg">−{fmt(s.exp)}</span></div>
             {#if s.sav > 0}<div class="summary-row"><span class="sav">💾 Savings:</span><span class="mono fw sav">{fmt(s.sav)}</span></div>{/if}
+            {#if s.sav > 0}
+              <div class="summary-row"><span class="muted fw">Total:</span><span class="mono fw">{fmt(s.totalBal)}</span></div>
+              <div class="summary-row usable-row">
+                <span class="muted fw">Usable Amount:</span>
+                <span class="mono fw" style="color:{s.usableBal < 0 ? 'var(--danger)' : 'var(--accent)'}">
+                  {fmt(s.usableBal)}
+                </span>
+              </div>
+            {/if}
             <div class="summary-row final-row"><span class="muted fw">Final Balance:</span><span class="mono pos" style="font-size:14px;font-weight:700">{fmt(s.finalBal)}</span></div>
           </div>
           <p class="next-month">Next month starts at {fmt(s.finalBal)}</p>
@@ -235,7 +275,7 @@
         </thead>
         <tbody>
           {#if loading}
-            <tr><td colspan="6" class="empty">Loading…</td></tr>
+            <tr><td colspan="6" class="empty"><FunLoader size="small" /></td></tr>
           {:else if txs.length === 0}
             <tr><td colspan="6" class="empty">No transactions found</td></tr>
           {:else}
@@ -244,7 +284,9 @@
                 <td class="sm">{tx.date?.slice(0,10)}</td>
                 <td>
                   {tx.description || '-'}
-                  {#if tx.is_savings}<span class="badge savings">💾 Savings{tx.goal_id ? ' → ' + (goals.find(g=>g.id==tx.goal_id)?.name||'Goal') : ''}</span>{/if}
+                  {#if tx.is_savings}<span class="badge savings">💾 Savings</span>{/if}
+                  {#if tx.goal_id}{@const g = goals.find(g=>g.id===tx.goal_id)}{#if g}<span class="badge goal">🎯 {g.name}</span>{/if}{/if}
+                  {#if savingsDipTxIds.has(tx.id)}<span class="badge dip">⚠️ Used savings</span>{/if}
                 </td>
                 <td>
                   <span class="badge" class:income={tx.type==='income'} class:expense={tx.type==='expense'}>
@@ -309,28 +351,14 @@
   <div class="form-group">
     <label class="checkbox-label"><input type="checkbox" bind:checked={fSavings}> Flag as savings</label>
   </div>
-  {#if fSavings}
-    <div class="savings-goal-box">
-      <div class="form-group">
-        <label for="f-goal">Link to Savings Goal (optional)</label>
-        <select id="f-goal" class="input-field" bind:value={fGoalId}>
-          <option value="">— No goal —</option>
-          {#each goals as g}
-            <option value={g.id}>{g.name} ({fmt(g.current)} / {fmt(g.target)})</option>
-          {/each}
-        </select>
-      </div>
-      {#if fGoalId}
-        <div class="form-group">
-          <label for="f-sav-amt">Amount to allocate to goal (RM)</label>
-          <input id="f-sav-amt" class="input-field" type="number" step="0.01"
-            placeholder="Enter savings amount (max: {fAmount})"
-            bind:value={fSavingsAmount}
-            max={fAmount}>
-          <p class="hint-text">💡 Remaining spendable: RM {Math.max(0, parseFloat(fAmount||0) - parseFloat(fSavingsAmount||0)).toFixed(2)}</p>
-        </div>
-      {/if}
-    </div>
+  {#if fSavings && goals.length > 0}
+  <div class="form-group">
+    <label for="f-goal">Link to Savings Goal (optional)</label>
+    <select id="f-goal" class="input-field" bind:value={fGoalId}>
+      <option value="">— No goal —</option>
+      {#each goals as g}<option value={g.id}>{g.name} ({fmt(g.current)} / {fmt(g.target)})</option>{/each}
+    </select>
+  </div>
   {/if}
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showAdd=false}>Cancel</button>
@@ -379,6 +407,15 @@
   <div class="form-group">
     <label class="checkbox-label"><input type="checkbox" bind:checked={eSavings}> Flag as savings</label>
   </div>
+  {#if eSavings && goals.length > 0}
+  <div class="form-group">
+    <label for="e-goal">Link to Savings Goal (optional)</label>
+    <select id="e-goal" class="input-field" bind:value={eGoalId}>
+      <option value="">— No goal —</option>
+      {#each goals as g}<option value={g.id}>{g.name} ({fmt(g.current)} / {fmt(g.target)})</option>{/each}
+    </select>
+  </div>
+  {/if}
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showEdit=false}>Cancel</button>
     <button class="btn-primary" on:click={saveTx}>Update</button>
@@ -389,6 +426,11 @@
   .space{display:flex;flex-direction:column;gap:16px;}
   .page-hdr{display:flex;align-items:center;justify-content:space-between;}
   .count{font-size:14px;color:var(--text2);}
+  .shortage-badge-inline { margin-left:10px; background:var(--danger); color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; vertical-align:middle; }
+  .shortage-banner { display:flex; align-items:flex-start; gap:12px; padding:14px 18px; background:rgba(255,92,124,.08); border:1px solid rgba(255,92,124,.25); border-radius:10px; }
+  .shortage-icon { font-size:20px; flex-shrink:0; }
+  .shortage-title { font-size:13px; font-weight:700; color:var(--danger); }
+  .shortage-desc { font-size:12px; color:var(--text2); margin-top:3px; }
   .filters{padding:16px;}
   .filter-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
   @media(max-width:1100px){.filter-grid{grid-template-columns:repeat(3,1fr);}}
@@ -403,6 +445,7 @@
   .summary-rows{display:flex;flex-direction:column;gap:6px;}
   .summary-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;}
   .final-row{border-top:1px solid var(--border);padding-top:8px;margin-top:2px;}
+  .usable-row{background:rgba(0,229,160,.05);border-radius:4px;padding:3px 4px;margin:2px 0;}
   .next-month{font-size:11px;color:var(--text2);font-style:italic;margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.05);}
   .muted{color:var(--text2);}
   .pos{color:var(--accent);}
@@ -426,11 +469,10 @@
   .badge.income{background:rgba(0,229,160,.15);color:var(--accent);}
   .badge.expense{background:rgba(255,92,124,.15);color:var(--danger);}
   .badge.savings{background:rgba(124,92,252,.15);color:var(--accent2);margin-left:6px;}
+  .badge.goal{background:rgba(255,179,71,.15);color:#ffb347;margin-left:6px;}
+  .badge.dip{background:rgba(255,92,124,.15);color:var(--danger);margin-left:6px;font-size:10px;}
   .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .form-group{margin-bottom:14px;}
   .checkbox-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2);}
   .modal-actions{display:flex;gap:8px;margin-top:20px;}
-  .shortage-badge{background:rgba(255,92,124,.15);color:var(--danger);font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,92,124,.3);}
-  .savings-goal-box{background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.15);border-radius:8px;padding:12px;margin-bottom:14px;}
-  .hint-text{font-size:11px;color:var(--accent);margin-top:4px;}
 </style>

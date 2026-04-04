@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
   import { fmt } from '$lib/stores.js';
+  import FunLoader from '$lib/components/FunLoader.svelte';
 
   const COLORS = ['#00e5a0','#7c5cfc','#ff5c7c','#ffb347','#4ecdc4','#45b7d1','#96ceb4','#feca57'];
 
@@ -146,7 +147,7 @@
 
 <div class="fade-in space">
   {#if loading}
-    <div class="loading">Loading…</div>
+    <FunLoader />
   {:else if data}
 
   <!-- Month selector -->
@@ -158,7 +159,7 @@
       {/each}
     </select>
     {#if monthLoading}
-      <span class="month-loading">Loading…</span>
+      <FunLoader size="small" />
     {/if}
   </div>
 

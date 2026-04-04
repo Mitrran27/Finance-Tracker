@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
   import { showToast } from '$lib/stores.js';
+  import FunLoader from '$lib/components/FunLoader.svelte';
 
   let notifs=[], loading=true;
 
@@ -42,7 +43,7 @@
 
   <div class="notif-list">
     {#if loading}
-      <div class="glass2 empty-state">Loading…</div>
+      <FunLoader />
     {:else if notifs.length === 0}
       <div class="glass empty-state">
         <p>No notifications</p>
