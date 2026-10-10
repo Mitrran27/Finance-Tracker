@@ -45,7 +45,7 @@
       <polyline points="6,30 14,23 21,27 32,14" fill="none" stroke="#00e5a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
       <polygon points="32,14 28,16 33,20" fill="#00e5a0"/>
     </svg>
-    <span class="logo-text">Finance Tracker</span>
+    <span class="logo-text">DuitFlow</span>
   </div>
 
   <nav>

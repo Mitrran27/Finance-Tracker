@@ -13,7 +13,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const FROM = `"${process.env.EMAIL_FROM_NAME || 'Finance Tracker'}" <${process.env.SMTP_USER}>`;
+const FROM = `"${process.env.EMAIL_FROM_NAME || 'DuitFlow'}" <${process.env.SMTP_USER}>`;
 
 // ── Send a single reminder email ──────────────────────────────────────────
 export async function sendReminderEmail({ to, recipientName, eventTitle, eventDate, daysUntil, type }) {
@@ -44,7 +44,7 @@ export async function sendReminderEmail({ to, recipientName, eventTitle, eventDa
 <body>
   <div class="card">
     <div class="header">
-      <p class="header-title">Finance Tracker</p>
+      <p class="header-title">DuitFlow</p>
       <p class="header-sub">Reminder Notification</p>
     </div>
     <div class="body">
@@ -58,13 +58,13 @@ export async function sendReminderEmail({ to, recipientName, eventTitle, eventDa
       <p class="countdown">This ${typeLabel} is <strong>${dayLabel} away</strong>. Make sure you're prepared!</p>
     </div>
     <div class="footer">
-      This email was sent automatically by Finance Tracker. To stop receiving reminders, remove the email from your event settings.
+      This email was sent automatically by DuitFlow. To stop receiving reminders, remove the email from your event settings.
     </div>
   </div>
 </body>
 </html>`;
 
-  const text = `Reminder: "${eventTitle}" is in ${dayLabel}\nDate: ${eventDate}\n\nThis is an automated reminder from Finance Tracker.`;
+  const text = `Reminder: "${eventTitle}" is in ${dayLabel}\nDate: ${eventDate}\n\nThis is an automated reminder from DuitFlow.`;
 
   const info = await transporter.sendMail({ from: FROM, to, subject, html, text });
   console.log(`📧 Reminder sent to ${to} — "${eventTitle}" (${dayLabel}) — msgId: ${info.messageId}`);

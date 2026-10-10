@@ -4,9 +4,9 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Finance Tracker API',
+      title: 'DuitFlow API',
       version: '1.0.0',
-      description: 'REST API for the Finance Tracker application. Use the /api/auth/login endpoint to get a Bearer token, then click Authorize to use protected routes.',
+      description: 'REST API for the DuitFlow application. Use the /api/auth/login endpoint to get a Bearer token, then click Authorize to use protected routes.',
     },
     servers: [{ url: 'http://localhost:3000', description: 'Local dev server' }],
     components: {

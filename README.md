@@ -1,4 +1,4 @@
-# Finance Tracker
+# DuitFlow
 
 Personal finance management app.
 

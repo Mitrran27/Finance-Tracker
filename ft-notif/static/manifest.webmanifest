@@ -1,6 +1,6 @@
 {
-  "name": "Finance Tracker",
-  "short_name": "Finance",
+  "name": "DuitFlow",
+  "short_name": "DuitFlow",
   "description": "Track your transactions, banks, credit, goals and more.",
   "id": "/",
   "start_url": "/",

@@ -1,6 +1,6 @@
-# Finance Tracker — SvelteKit
+# DuitFlow — SvelteKit
 
-A static HTML/CSS Finance Tracker converted to a SvelteKit project.
+A static HTML/CSS DuitFlow converted to a SvelteKit project.
 
 ## Project Structure
 

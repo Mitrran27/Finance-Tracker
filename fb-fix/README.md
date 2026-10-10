@@ -1,4 +1,4 @@
-# Finance Tracker — Node.js + Neon PostgreSQL Backend
+# DuitFlow — Node.js + Neon PostgreSQL Backend
 
 ## Setup
 

@@ -9,7 +9,7 @@
  *   SMTP_SECURE=false          # true for port 465
  *   SMTP_USER=you@gmail.com
  *   SMTP_PASS=your-app-password
- *   SMTP_FROM="Finance Tracker <you@gmail.com>"
+ *   SMTP_FROM="DuitFlow <you@gmail.com>"
  *
  * For Gmail: use an App Password (not your main password).
  * For Mailtrap / dev testing: use Mailtrap SMTP credentials.
@@ -42,7 +42,7 @@ export async function sendEmail(to, subject, html) {
   }
   try {
     const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || `"Finance Tracker" <${process.env.SMTP_USER}>`,
+      from: process.env.SMTP_FROM || `"DuitFlow" <${process.env.SMTP_USER}>`,
       to,
       subject,
       html,
@@ -91,7 +91,7 @@ export function buildReminderEmail({ userName, title, eventDate, daysAway, type 
 <body>
   <div class="card">
     <div class="top">
-      <h1>Finance Tracker</h1>
+      <h1>DuitFlow</h1>
       <p>${typeLabel}</p>
     </div>
     <div class="body">
@@ -111,7 +111,7 @@ export function buildReminderEmail({ userName, title, eventDate, daysAway, type 
       <div class="urgency-badge">${urgency}</div>
     </div>
     <div class="footer">
-      This reminder was sent by Finance Tracker. To manage reminders, update your settings.
+      This reminder was sent by DuitFlow. To manage reminders, update your settings.
     </div>
   </div>
 </body>

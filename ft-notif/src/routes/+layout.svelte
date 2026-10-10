@@ -77,7 +77,7 @@
     '/settings':     'Settings',
     '/notifications':'Notifications',
   };
-  $: title = pageTitles[$page.url.pathname] || 'Finance Tracker';
+  $: title = pageTitles[$page.url.pathname] || 'DuitFlow';
 </script>
 
 <Toast />

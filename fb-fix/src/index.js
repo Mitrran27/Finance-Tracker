@@ -43,7 +43,7 @@ app.use(express.json());
 
 // ── Swagger UI ────────────────────────────────────────────────────────────────
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: 'Finance Tracker API Docs',
+  customSiteTitle: 'DuitFlow API Docs',
   swaggerOptions: { persistAuthorization: true, url: '/api/docs.json' },
 }));
 app.get('/api/docs.json', (_req, res) => {
@@ -74,7 +74,7 @@ app.use((err, _req, res, _next) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`✅ Finance Tracker API running at http://localhost:${PORT}`);
+  console.log(`✅ DuitFlow API running at http://localhost:${PORT}`);
   console.log(`📖 Swagger docs at   http://localhost:${PORT}/api/docs`);
   // Start daily reminder cron after server is ready
   startReminderCron();
