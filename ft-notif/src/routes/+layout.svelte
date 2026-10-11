@@ -12,6 +12,31 @@
   let ready = false;
   const publicRoutes = ['/auth'];
 
+  // ── Sidebar: drawer on mobile, collapsible on desktop ─────────────────────
+  const MOBILE_QUERY = '(max-width: 900px)';
+  let sidebarOpen = false;       // mobile drawer
+  let sidebarCollapsed = false;  // desktop
+
+  function toggleSidebar() {
+    if (window.matchMedia(MOBILE_QUERY).matches) {
+      sidebarOpen = !sidebarOpen;
+    } else {
+      sidebarCollapsed = !sidebarCollapsed;
+      localStorage.setItem('sidebarCollapsed', sidebarCollapsed ? '1' : '0');
+    }
+  }
+
+  function closeSidebar() { sidebarOpen = false; }
+
+  // Close the drawer after tapping any link/button inside it
+  function handleSidebarClick(e) {
+    if (e.target.closest('a, button')) closeSidebar();
+  }
+
+  function handleKeydown(e) {
+    if (e.key === 'Escape') closeSidebar();
+  }
+
   // ── Live clock ────────────────────────────────────────────────────────────
   let now = new Date();
   let clockInterval;
@@ -29,6 +54,8 @@
   }
 
   onMount(async () => {
+    sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === '1';
+
     const token = localStorage.getItem('token');
     if (token) {
       try {
@@ -76,9 +103,13 @@
     '/notes':        'Notes',
     '/settings':     'Settings',
     '/notifications':'Notifications',
+    '/goals':        'Goals',
+    '/investments':  'Investments',
   };
   $: title = pageTitles[$page.url.pathname] || 'DuitFlow';
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <Toast />
 
@@ -87,11 +118,25 @@
 {:else if isPublic}
   <slot />
 {:else if $user}
-  <div class="app-shell">
-    <Sidebar />
+  <div class="app-shell" class:collapsed={sidebarCollapsed}>
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="sidebar-wrap" class:open={sidebarOpen} on:click={handleSidebarClick}>
+      <Sidebar />
+    </div>
+    {#if sidebarOpen}
+      <button class="sidebar-backdrop" on:click={closeSidebar} aria-label="Close menu"></button>
+    {/if}
+
     <div class="main-col">
       <header class="topbar">
-        <h2 class="page-title">{title}</h2>
+        <div class="topbar-left">
+          <button class="menu-btn" on:click={toggleSidebar} aria-label="Toggle menu" aria-expanded={sidebarOpen}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>
+            </svg>
+          </button>
+          <h2 class="page-title">{title}</h2>
+        </div>
 
         <div class="topbar-right">
           <!-- Live clock -->
@@ -122,8 +167,25 @@
 {/if}
 
 <style>
-  .app-shell { display: flex; height: 100vh; width: 100%; overflow: hidden; }
-  .main-col  { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .app-shell { display: flex; height: 100vh; height: 100dvh; width: 100%; overflow: hidden; }
+  .main-col  { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Sidebar container */
+  .sidebar-wrap {
+    height: 100%; flex-shrink: 0; width: 240px;
+    transition: margin-left .25s ease;
+  }
+  .collapsed .sidebar-wrap { margin-left: -240px; }
+  .sidebar-backdrop { display: none; }
+
+  .topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .menu-btn {
+    padding: 8px; border-radius: 8px; color: var(--text2);
+    background: none; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s; flex-shrink: 0;
+  }
+  .menu-btn:hover { background: var(--surface2); color: var(--text); }
 
   .topbar {
     display: flex; align-items: center; justify-content: space-between;
@@ -206,5 +268,35 @@
     box-shadow: 0 0 0 2px var(--surface);
   }
 
-  .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+  .page-content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px; }
+
+  /* ── Mobile ─────────────────────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .sidebar-wrap {
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 900;
+      width: min(280px, 85vw);
+      transform: translateX(-100%);
+      transition: transform .25s ease;
+      margin-left: 0 !important;
+    }
+    .sidebar-wrap.open { transform: none; box-shadow: 8px 0 32px rgba(0,0,0,.5); }
+    .sidebar-wrap :global(.sidebar) { width: 100%; }
+    .sidebar-backdrop {
+      display: block; position: fixed; inset: 0; z-index: 899;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
+      border: none; padding: 0; cursor: pointer;
+      animation: backdropIn .2s ease;
+    }
+    .topbar { padding: 10px 12px; }
+    .page-title { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-right { gap: 8px; }
+    .clock-date, .clock-day, .clock-sep { display: none; }
+    .clock-block { padding: 5px 10px; }
+    .page-content { padding: 16px; }
+  }
+  @media (max-width: 480px) {
+    .clock-block { display: none; }
+    .page-content { padding: 12px; }
+  }
+  @keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
 </style>

@@ -381,4 +381,32 @@
   .mini-note.overdue { color:var(--danger); }
   .more-text   { font-size:11px; color:var(--text2); margin-top:4px; }
   .mono { font-family:'Space Mono',monospace; }
+
+  /* Grid children may shrink below content width */
+  .stat-card, .chart-card, .info-card { min-width:0; }
+  .stat-sub, .info-sub { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* Mobile */
+  @media(max-width:600px){
+    .space       { gap:14px; }
+    .month-bar   { flex-wrap:wrap; gap:8px 10px; padding:10px 14px; }
+    .month-select{ font-size:16px; flex:1; min-width:0; max-width:100%; padding:8px 10px; }
+    .stat-grid   { gap:12px; }
+    .stat-card   { padding:16px; }
+    .stat-val    { font-size:20px; overflow-wrap:anywhere; }
+    .chart-grid, .info-grid { gap:12px; }
+    .chart-card, .info-card { padding:16px; }
+    .card-title  { margin-bottom:12px; }
+    .info-count  { font-size:24px; }
+    .pie-row     { gap:16px; }
+    .pie-row svg { width:120px; height:120px; max-width:100%; }
+    .pie-legend  { min-width:0; }
+    .pie-val     { font-size:14px; overflow-wrap:anywhere; }
+    .cat-name    { width:64px; }
+    .cat-val     { width:auto; min-width:64px; white-space:nowrap; }
+  }
+  @media(max-width:380px){
+    .pie-row     { flex-direction:column; align-items:center; }
+    .pie-legend  { flex-direction:row; flex-wrap:wrap; justify-content:center; gap:12px 20px; }
+  }
 </style>

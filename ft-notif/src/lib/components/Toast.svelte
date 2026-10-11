@@ -18,5 +18,18 @@
   }
   .toast-success { background: rgba(0,229,160,.15); border: 1px solid rgba(0,229,160,.3); color: var(--accent); }
   .toast-error   { background: rgba(255,92,124,.15); border: 1px solid rgba(255,92,124,.3); color: var(--danger); }
+  @media (max-width: 600px) {
+    .toast {
+      left: max(12px, env(safe-area-inset-left));
+      right: max(12px, env(safe-area-inset-right));
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      max-width: none;
+      padding: 12px 16px;
+      text-align: center;
+      overflow-wrap: anywhere;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+  }
   @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
 </style>

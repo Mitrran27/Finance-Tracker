@@ -55,4 +55,19 @@
   }
   .close-btn:hover { color: var(--text); }
   .modal-body { padding: 16px 24px 24px; }
+
+  /* Phones: slide up as a bottom sheet */
+  @media (max-width: 600px) {
+    .overlay { align-items: flex-end; padding: 0; }
+    .modal-box {
+      max-width: none; border-radius: 16px 16px 0 0;
+      max-height: 92vh; max-height: 92dvh;
+      border-bottom: none;
+      animation: sheetUp .25s ease;
+    }
+    .modal-header { padding: 16px 16px 0; }
+    .modal-body { padding: 12px 16px calc(20px + env(safe-area-inset-bottom)); }
+    .close-btn { padding: 8px; font-size: 18px; }
+  }
+  @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 </style>

@@ -85,4 +85,14 @@
   .icon-btn{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.45);padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
   .icon-btn:hover{background:rgba(255,92,124,.12);color:var(--danger);}
   .empty-state{padding:48px;text-align:center;color:var(--text2);}
+  .notif-text{overflow-wrap:anywhere;}
+
+  @media(max-width:600px){
+    .page-hdr{flex-wrap:wrap;gap:10px;}
+    .notif-row{padding:12px;gap:10px;}
+    .notif-actions{gap:4px;}
+    .read-btn{min-height:36px;padding:0 8px;}
+    .icon-btn{min-width:36px;min-height:36px;}
+    .empty-state{padding:32px 16px;}
+  }
 </style>

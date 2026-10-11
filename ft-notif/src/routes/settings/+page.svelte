@@ -244,4 +244,16 @@
   }
   .add-btn:hover:not(:disabled) { background:rgba(0,229,160,.18); transform:scale(1.05); }
   .add-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .add-input { min-width:0; }
+
+  @media (max-width:600px) {
+    .space         { gap:16px; }
+    .section       { padding:16px; }
+    .section-title { margin-bottom:12px; }
+    .email-row     { padding:10px 12px; gap:10px; }
+    .remove-btn    { min-width:36px; min-height:36px; }
+    .field-group > button,
+    .section > .btn-secondary,
+    .section > .btn-danger { width:100%; justify-content:center; }
+  }
 </style>

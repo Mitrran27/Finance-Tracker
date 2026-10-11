@@ -26,7 +26,16 @@
     border: 1px solid var(--border);
     padding: 40px;
     border-radius: 12px;
-    width: 420px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  @media (max-width: 600px) {
+    .coming-soon { padding: 16px 0; }
+    .card { padding: 28px 20px; }
+    .icon { font-size: 40px; }
+    h1 { font-size: 19px; }
+    p { font-size: 14px; overflow-wrap: anywhere; }
   }
 
   .icon {

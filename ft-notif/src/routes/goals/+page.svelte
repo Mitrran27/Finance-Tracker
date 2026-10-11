@@ -290,7 +290,7 @@
                 <span class="dl-label muted">No deadline</span>
               {/if}
             </div>
-            <div style="display:flex;gap:6px;align-items:center">
+            <div class="footer-btns" style="display:flex;gap:6px;align-items:center">
               <button class="btn-txs" on:click={() => toggleInline(g)}>
                 {expandedGoalId === g.id ? '▲ Hide Txs' : '▼ Transactions'}
               </button>
@@ -589,4 +589,40 @@
   .muted-td { color:var(--text2); font-size:12px; }
   .icon-btn-sm { background:none; border:none; cursor:pointer; color:rgba(255,255,255,.4); padding:4px; border-radius:4px; display:flex; align-items:center; transition:all .15s; }
   .icon-btn-sm:hover { color:var(--danger); background:rgba(255,92,124,.1); }
+
+  /* ── Mobile ── */
+  .contribs-table { -webkit-overflow-scrolling:touch; }
+  @media(max-width:900px){
+    .page-hdr     { flex-wrap:wrap; gap:12px; }
+    .goal-header  { gap:8px; }
+    .goal-title-row { min-width:0; }
+    .goal-name    { min-width:0; overflow-wrap:anywhere; }
+    .shortage-desc{ overflow-wrap:anywhere; }
+    .contrib-header { flex-wrap:wrap; }
+  }
+  @media(max-width:600px){
+    .space        { gap:16px; }
+    .page-title   { font-size:18px; }
+    .shortage-banner { padding:12px 14px; }
+    .summary-bar  { padding:14px 16px; gap:12px; }
+    .summary-val  { font-size:15px; overflow-wrap:anywhere; }
+    .empty-state  { padding:40px 20px; }
+    .goal-card    { padding:16px; }
+    .icon-btn     { min-width:36px; min-height:36px; justify-content:center; }
+    .icon-btn-sm  { min-width:32px; min-height:32px; justify-content:center; }
+    .amount-item  { min-width:0; text-align:center; }
+    .amount-val   { font-size:12px; overflow-wrap:anywhere; }
+    .bank-badge   { max-width:100%; overflow-wrap:anywhere; }
+    .btn-txs,.add-savings-btn { min-height:36px; }
+    th,td         { padding:8px; white-space:nowrap; }
+    .col-dot      { width:28px; height:28px; }
+    .color-row    { gap:10px; }
+  }
+  @media(max-width:500px){
+    .page-hdr > .btn-primary { width:100%; }
+    .footer-btns  { width:100%; }
+    .footer-btns > button { flex:1; }
+    .form-row     { grid-template-columns:1fr; gap:0; }
+    .modal-actions > button { flex:1; }
+  }
 </style>

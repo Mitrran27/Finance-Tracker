@@ -121,4 +121,10 @@
   .user-email { font-size:11px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .logout-btn { background:none; border:none; cursor:pointer; color:var(--text2); display:flex; }
   .logout-btn:hover { color:var(--danger); }
+
+  @media (max-width: 900px) {
+    .nav-item { padding:12px 14px; font-size:15px; }
+    .user-row { padding-bottom:calc(16px + env(safe-area-inset-bottom)); }
+    .logout-btn { padding:8px; }
+  }
 </style>

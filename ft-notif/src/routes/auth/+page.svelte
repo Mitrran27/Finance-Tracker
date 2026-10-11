@@ -98,5 +98,23 @@
 
   .field { margin-bottom: 16px; }
   .w-full { width: 100%; justify-content: center; margin-top: 4px; }
-  .error { color: var(--danger); font-size: 12px; margin-bottom: 10px; text-align: center; }
+  .error { color: var(--danger); font-size: 12px; margin-bottom: 10px; text-align: center; overflow-wrap: anywhere; }
+
+  @media (max-width: 600px) {
+    .auth-screen {
+      min-height: 100dvh;
+      padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+               max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    }
+    .auth-card { padding: 24px 20px; }
+    .auth-logo { margin-bottom: 20px; }
+    .tab-row   { margin-bottom: 20px; }
+    .tab       { min-height: 42px; }
+    .w-full    { min-height: 44px; }
+  }
+  @media (max-width: 380px) {
+    .auth-card { padding: 20px 16px; }
+    .logo-icon { width: 48px; height: 48px; border-radius: 14px; }
+    .auth-logo h1 { font-size: 20px; }
+  }
 </style>

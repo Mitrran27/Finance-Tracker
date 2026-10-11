@@ -46,6 +46,14 @@
     z-index: 100;
   }
 
+  @media (max-width: 900px) {
+    .tooltip {
+      width: max-content;
+      max-width: min(200px, calc(100vw - 120px));
+      overflow-wrap: anywhere;
+    }
+  }
+
   .info-wrapper:hover .tooltip {
     opacity: 1;
   }

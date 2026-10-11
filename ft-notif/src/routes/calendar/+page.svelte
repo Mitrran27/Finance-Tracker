@@ -485,4 +485,33 @@
   .modal-hint    { font-size:11px; color:var(--text2); margin-top:5px; }
   .note-label    { color:#ff9ff3 !important; }
   .note-card-cal { opacity:.9; }
+
+  /* ── Mobile ── */
+  @media(max-width:900px){
+    .layout     { gap:16px; }
+    .ev-title   { overflow-wrap:anywhere; }
+    .ev-sub     { overflow-wrap:anywhere; }
+  }
+  @media(max-width:700px){
+    .month-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .day-grid   { grid-template-columns:repeat(7,minmax(0,1fr)); }
+    .day-cell   { min-width:0; min-height:26px; padding:1px 0 2px; }
+    /* bars become dots so up to 3 fit in a narrow cell */
+    .event-bars { gap:1px; margin-top:1px; }
+    .event-bar  { width:4px; height:4px; border-radius:50%; }
+  }
+  @media(max-width:480px){
+    .month-grid { gap:6px; }
+    .month-card { padding:6px; }
+    .month-name { font-size:10px; margin-bottom:4px; }
+    .wd-label   { font-size:7px; padding-bottom:2px; }
+    .day-cell   { min-height:22px; border-radius:3px; }
+    .day-num    { font-size:9px; width:16px; height:16px; }
+    .ev-day     { font-size:20px; }
+    .ev-date    { min-width:40px; padding:10px 6px; }
+    .ev-info    { padding:10px 6px; }
+    .icon-btn   { min-width:40px; }
+    .empty-state{ padding:24px 16px; }
+    .modal-actions > button { flex:1; }
+  }
 </style>

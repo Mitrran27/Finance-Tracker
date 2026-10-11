@@ -191,4 +191,20 @@
   .form-group{margin-bottom:14px;}
   .modal-actions{display:flex;gap:8px;margin-top:20px;}
   textarea.input-field{resize:vertical;}
+  .note-text{min-width:0;overflow-wrap:anywhere;}
+
+  @media(max-width:600px){
+    .page-hdr{flex-wrap:wrap;gap:10px;}
+    .filters{padding:12px;}
+    .note-card{padding:12px;}
+    .icon-btn{min-width:36px;min-height:36px;}
+    .empty-state{padding:32px 16px;}
+    .modal-actions > button{flex:1;justify-content:center;}
+  }
+  @media(max-width:500px){
+    .filter-grid{grid-template-columns:1fr;}
+    .note-top{flex-wrap:wrap;}
+    .note-text{flex-basis:100%;}
+    .note-actions{margin-left:auto;}
+  }
 </style>

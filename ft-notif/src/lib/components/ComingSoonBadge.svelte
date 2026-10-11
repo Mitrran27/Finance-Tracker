@@ -13,5 +13,7 @@
     padding: 2px 6px;
     border-radius: 6px;
     font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 </style>

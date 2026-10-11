@@ -429,4 +429,48 @@
   .badge.savings{background:rgba(124,92,252,.15);color:var(--accent2);margin-left:4px;}
   .form-group{margin-bottom:14px;}
   .modal-actions{display:flex;gap:8px;margin-top:20px;}
+
+  .bank-card,.stat-card{min-width:0;}
+  .bank-top{min-width:0;}
+  .bank-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tscroll{-webkit-overflow-scrolling:touch;}
+
+  /* Tablet / phone */
+  @media(max-width:900px){
+    .stmt-header{padding:16px 18px;}
+    td.sm,td.right,tfoot td{white-space:nowrap;}
+    tbody td:nth-child(2){min-width:150px;}
+  }
+  @media(max-width:600px){
+    .page-hdr{flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+    .bank-grid{gap:12px;}
+    .bank-card{padding:16px;}
+    .bank-bal{font-size:20px;overflow-wrap:anywhere;}
+    .icon-btn{min-width:36px;min-height:36px;}
+    .back-btn{padding:8px 0;margin-bottom:6px;}
+    .stmt-title-row{flex-wrap:wrap;gap:6px 12px;}
+    .stmt-bank-name{font-size:16px;overflow-wrap:anywhere;}
+    .stmt-balance{font-size:20px;}
+    .date-range{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end;}
+    .date-range>div{min-width:0;}
+    .date-range .input-field{width:100%;min-width:0;}
+    .date-sep{display:none;}
+    .date-range>button{width:100%;min-height:40px;}
+    .date-range>button:last-child{grid-column:1/-1;}
+    .cat-card{padding:16px;}
+    .cat-row{gap:8px;}
+    .cat-name{width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .cat-val{width:auto;min-width:72px;white-space:nowrap;}
+    .table-header{padding:12px 14px;}
+    table{font-size:12px;}
+    th{padding:8px 10px;}
+    td{padding:8px 10px;}
+    tfoot td{padding:10px;}
+    .empty{padding:24px 12px;}
+  }
+  @media(max-width:500px){
+    .stat-grid{gap:10px;}
+    .stat-card{padding:12px;}
+    .stat-val{font-size:15px;overflow-wrap:anywhere;}
+  }
 </style>

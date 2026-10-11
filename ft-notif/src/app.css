@@ -13,6 +13,8 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); }
+html { -webkit-text-size-adjust: 100%; }
+body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
@@ -135,3 +137,11 @@ select.input-field {
 .mono { font-family: 'Space Mono', monospace; }
 
 label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  /* 16px stops iOS Safari from zooming in when an input is focused */
+  .input-field, select, textarea, input { font-size: 16px; }
+  .btn-primary, .btn-secondary, .btn-danger { padding: 10px 16px; min-height: 40px; justify-content: center; }
+  .stat-card { padding: 16px; }
+}

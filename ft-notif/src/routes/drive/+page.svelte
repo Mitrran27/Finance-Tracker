@@ -309,4 +309,27 @@
 
   .divider{ display:flex; align-items:center; gap:12px; margin:12px 0; color:var(--text2); font-size:11px; }
   .divider::before,.divider::after{ content:''; flex:1; height:1px; background:var(--border); }
+  .folder-name{overflow-wrap:anywhere;}
+  .folder-btn{min-width:0;}
+  .folder-info{min-width:0;}
+  .file-chosen{overflow-wrap:anywhere;text-align:center;}
+
+  @media(max-width:600px){
+    .page-hdr{flex-wrap:wrap;gap:10px;}
+    .btn-row{width:100%;}
+    .btn-row > button{flex:1;justify-content:center;}
+    .breadcrumb{padding:10px 12px;flex-wrap:wrap;gap:8px;}
+    .back-btn{min-height:36px;padding:0 4px;}
+    .breadcrumb .muted{min-width:0;overflow-wrap:anywhere;}
+    .folder-card{padding:10px 12px;gap:8px;}
+    .filters{padding:12px;}
+    .file-row{padding:12px;gap:10px;}
+    .file-meta{overflow-wrap:anywhere;}
+    .file-actions{gap:4px;}
+    .dl-btn,.icon-btn{min-width:36px;min-height:36px;display:flex;align-items:center;justify-content:center;}
+    .empty-state{padding:24px 16px;}
+    .file-drop{padding:16px;}
+    .modal-actions > button{flex:1;justify-content:center;}
+  }
+  @media(max-width:500px){.form-row{grid-template-columns:1fr;gap:0;}}
 </style>

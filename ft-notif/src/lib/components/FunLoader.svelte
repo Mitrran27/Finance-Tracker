@@ -89,6 +89,11 @@
   .fun-loader.small .loader-text {
     font-size: 12px;
   }
+  @media (max-width: 600px) {
+    .fun-loader { padding: 28px 16px; }
+    .fun-loader.fullscreen { padding: 0 16px; }
+    .loader-text { font-size: 13px; max-width: 100%; overflow-wrap: anywhere; }
+  }
   .loader-text.hidden {
     opacity: 0;
     transform: translateY(4px);
