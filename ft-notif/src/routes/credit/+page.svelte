@@ -561,7 +561,8 @@
   /* Card tiles */
   .card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
   @media(max-width:900px){.card-grid{grid-template-columns:repeat(2,1fr);}}
-  @media(max-width:600px){.card-grid{grid-template-columns:1fr;}}
+  @media(max-width:600px){.card-grid{grid-template-columns:minmax(0,1fr);}}
+  .card-grid>*{min-width:0;}
   .cc-card{padding:20px;border-radius:12px;background:linear-gradient(135deg,#1a1a3e,#2d1b69);border:1px solid rgba(124,92,252,.3);}
   .cc-top{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
   .cc-top-actions{display:flex;gap:4px;margin-left:auto;}

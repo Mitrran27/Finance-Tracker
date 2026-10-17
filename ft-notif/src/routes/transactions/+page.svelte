@@ -435,7 +435,13 @@
   .filter-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
   @media(max-width:1100px){.filter-grid{grid-template-columns:repeat(3,1fr);}}
   @media(max-width:700px){.filter-grid{grid-template-columns:repeat(2,1fr);}}
-  @media(max-width:500px){.filter-grid{grid-template-columns:1fr;}}
+  /* Phones: Search on its own row, then Bank|Sort and From|To pairs */
+  @media(max-width:500px){
+    .filter-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .filter-grid>div:nth-child(1){grid-column:1/-1;}
+    .filter-grid>div:nth-child(5){order:1;}
+    .filter-grid>div:nth-child(3),.filter-grid>div:nth-child(4){order:2;}
+  }
   .clear-btn{margin-top:10px;background:none;border:none;cursor:pointer;color:var(--text2);font-size:12px;}
   .clear-btn:hover{color:var(--danger);}
 
