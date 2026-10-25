@@ -16,6 +16,7 @@ import notificationsRoutes from './routes/notifications.js';
 import settingsRoutes      from './routes/settings.js';
 import overviewRoutes      from './routes/overview.js';
 import goalsRoutes         from './routes/goals.js';
+import billsRoutes         from './routes/bills.js';
 
 dotenv.config();
 
@@ -63,6 +64,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/settings',      settingsRoutes);
 app.use('/api/overview',      overviewRoutes);
 app.use('/api/goals',         goalsRoutes);
+app.use('/api/bills',         billsRoutes);
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

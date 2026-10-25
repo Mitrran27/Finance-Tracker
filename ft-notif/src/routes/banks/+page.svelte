@@ -1,8 +1,10 @@
 <script>
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
-  import { fmt, showToast, BANKS_LIST, CATEGORIES, today } from '$lib/stores.js';
+  import { fmt, showToast, today } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
+  import BankLogo from '$lib/components/BankLogo.svelte';
+  import BankPicker from '$lib/components/BankPicker.svelte';
   import FunLoader from '$lib/components/FunLoader.svelte';
 
   let banks = [], goals = [], loading = true;
@@ -41,9 +43,13 @@
   function openEdit(b) { editBank = b; eName = b.name; eBalance = b.balance; showEdit = true; }
 
   async function saveEdit() {
+    const balance = parseFloat(eBalance);
+    if (!eName) return showToast('Select a bank name', 'error');
+    if (isNaN(balance)) return showToast('Enter a valid balance', 'error');
     try {
-      await api.patch(`/banks/${editBank.id}`, { name: eName, balance: parseFloat(eBalance) || 0 });
-      showToast('Balance updated!');
+      const updated = await api.patch(`/banks/${editBank.id}`, { name: eName, balance });
+      showToast('Account updated!');
+      if (viewingBank?.id === updated.id) viewingBank = updated;
       showEdit = false; editBank = null; load();
     } catch(e) { showToast(e.message, 'error'); }
   }
@@ -152,11 +158,17 @@
     <div class="stmt-header glass">
       <button class="back-btn" on:click={closeStatement}>← Back to Accounts</button>
       <div class="stmt-title-row">
-        <div>
-          <p class="stmt-bank-name">{viewingBank.name}</p>
-          <p class="stmt-subtitle">Transaction Statement</p>
+        <div class="stmt-title">
+          <BankLogo name={viewingBank.name} size={44} />
+          <div>
+            <p class="stmt-bank-name">{viewingBank.name}</p>
+            <p class="stmt-subtitle">Transaction Statement</p>
+          </div>
         </div>
-        <p class="stmt-balance mono">{fmt(viewingBank.balance)}</p>
+        <div class="stmt-bal-wrap">
+          <p class="stmt-balance mono">{fmt(viewingBank.balance)}</p>
+          <button class="edit-bal-btn" on:click={() => openEdit(viewingBank)}>✎ Edit balance</button>
+        </div>
       </div>
       <!-- Date range picker -->
       <div class="date-range">
@@ -297,8 +309,9 @@
           {@const shortage = goals.find(g => String(g.bank_id) === String(b.id) && g.has_shortage)}
           <button class="glass bank-card" on:click={() => openStatement(b)}>
             <div class="bank-top">
-              <div class="bank-icon">🏦</div>
+              <BankLogo name={b.name} size={36} />
               <span class="bank-name">{b.name}</span>
+              <button class="icon-btn edit" on:click|stopPropagation={() => openEdit(b)} title="Edit name / balance"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
               <button class="icon-btn danger" on:click|stopPropagation={() => deleteBank(b.id)} title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
             </div>
             <p class="bank-bal mono">{fmt(b.balance)}</p>
@@ -318,14 +331,11 @@
 <!-- Add Modal -->
 <Modal title="Add Bank Account" bind:show={showAdd} onClose={() => showAdd = false}>
   <div class="form-group">
-    <label for="bname">Bank Name</label>
-    <select id="bname" class="input-field" bind:value={fName}>
-      <option value="">Select a bank…</option>
-      {#each BANKS_LIST as b}<option>{b}</option>{/each}
-    </select>
+    <p class="field-label">Bank {#if fName}<span class="picked">— {fName}</span>{/if}</p>
+    <BankPicker bind:value={fName} />
   </div>
   <div class="form-group">
-    <label for="bbal">Current Balance</label>
+    <label for="bbal">Current Balance <span class="hint">(you can edit this anytime)</span></label>
     <input id="bbal" class="input-field" type="number" step="0.01" placeholder="0.00" bind:value={fBalance}>
   </div>
   <div class="modal-actions">
@@ -335,14 +345,14 @@
 </Modal>
 
 <!-- Edit Modal -->
-<Modal title="Update Balance" bind:show={showEdit} onClose={() => showEdit = false}>
+<Modal title="Edit Account" bind:show={showEdit} onClose={() => showEdit = false}>
   <div class="form-group">
-    <label for="ename">Bank Name</label>
-    <input id="ename" class="input-field" bind:value={eName}>
+    <label for="ebal">Balance (RM)</label>
+    <input id="ebal" class="input-field" type="number" step="0.01" bind:value={eBalance}>
   </div>
   <div class="form-group">
-    <label for="ebal">New Balance</label>
-    <input id="ebal" class="input-field" type="number" step="0.01" bind:value={eBalance}>
+    <p class="field-label">Bank {#if eName}<span class="picked">— {eName}</span>{/if}</p>
+    <BankPicker bind:value={eName} />
   </div>
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showEdit = false}>Cancel</button>
@@ -364,8 +374,15 @@
   .bank-card{padding:20px;text-align:left;cursor:pointer;transition:transform .15s,box-shadow .15s;border:none;}
   .bank-card:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(0,229,160,.15);}
   .bank-top{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
-  .bank-icon{font-size:20px;}
   .bank-name{font-weight:600;font-size:14px;flex:1;color: beige}
+  .icon-btn.edit:hover{background:rgba(0,229,160,.12);color:var(--accent);}
+  .field-label{font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px;}
+  .picked{color:var(--accent);font-weight:600;}
+  .hint{font-weight:400;opacity:.7;}
+  .stmt-title{display:flex;align-items:center;gap:12px;min-width:0;}
+  .stmt-bal-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+  .edit-bal-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--accent);font-size:12px;padding:4px 10px;cursor:pointer;}
+  .edit-bal-btn:hover{background:rgba(0,229,160,.1);}
   .bank-bal{font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Mono',monospace;color: white}
   .view-stmt{font-size:11px;color:var(--accent);margin-top:4px;}
   .bank-shortage-badge{margin:6px 0;padding:5px 10px;background:rgba(255,92,124,.12);border:1px solid rgba(255,92,124,.3);border-radius:6px;font-size:11px;font-weight:600;color:var(--danger);text-align:left;}

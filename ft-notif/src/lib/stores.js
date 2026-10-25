@@ -21,8 +21,3 @@ export const CATEGORIES = [
   'Bills','Transport','Health','Education','Entertainment','Other'
 ];
 
-export const BANKS_LIST = [
-  'Maybank','MAE','GX','CIMB','Public Bank','RHB','OCBC',
-  'Affin','Alliance Bank','AmBank','Bank Muamalat','HSBC',
-  'Standard Chartered','UOB','Citibank','ICBC','Other'
-];

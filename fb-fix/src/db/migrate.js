@@ -154,6 +154,21 @@ async function migrate() {
     )
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS bills (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name        VARCHAR(255) NOT NULL,
+      amount      NUMERIC(12,2) NOT NULL DEFAULT 0,
+      due_date    DATE,
+      category    VARCHAR(50),
+      note        VARCHAR(500),
+      settled     BOOLEAN DEFAULT FALSE,
+      settled_at  DATE,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
   // Safely add new columns if upgrading existing DB
 try {
   await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS bank_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL`;
