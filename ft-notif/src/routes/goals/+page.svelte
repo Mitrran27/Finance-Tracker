@@ -4,8 +4,17 @@
   import { fmt, showToast } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
   import FunLoader from '$lib/components/FunLoader.svelte';
+  import { parseList } from '$lib/parseList.js';
 
   const GOAL_COLORS = ['#00e5a0','#7c5cfc','#ff5c7c','#ffb347','#4ecdc4','#45b7d1','#ff9ff3','#54a0ff'];
+  const PRIORITIES = ['High','Medium','Low'];
+
+  // 'savings' = saving towards an amount; 'purchase' = saving up to buy a specific item
+  let tab = 'savings';
+  let showBought = false;
+  let showBulk = false, bulkText = '', bulkPriority = '';
+  let fPriority = '', fLink = '';
+  let ePriority = '', eLink = '';
 
   let goals = [], banks = [], savingsTxs = [], loading = true;
   let showAdd = false, showEdit = false, showContribute = false, showTxs = false;
@@ -21,7 +30,15 @@
   // Contribute form
   let cAmount='', cNote='', cTxId='';
 
-  onMount(load);
+  onMount(() => {
+    try { if (localStorage.getItem('goalsTab') === 'purchase') tab = 'purchase'; } catch {}
+    load();
+  });
+
+  function setTab(t) {
+    tab = t; expandedGoalId = null;
+    try { localStorage.setItem('goalsTab', t); } catch {}
+  }
 
   async function load() {
     loading = true;
@@ -41,14 +58,15 @@
   }
 
   async function addGoal() {
-    if (!fName || !fTarget) return showToast('Name and target required','error');
+    if (!fName || !fTarget) return showToast(isPurchase ? 'Item and price required' : 'Name and target required','error');
     try {
       await api.post('/goals', {
         name:fName, target:parseFloat(fTarget), current:parseFloat(fCurrent)||0,
         deadline:fDeadline||null, color:fColor, bank_id:fBankId||null,
+        kind:tab, priority:fPriority||null, link:fLink||null,
       });
-      showToast('Goal created!');
-      showAdd=false; fName=''; fTarget=''; fCurrent=''; fDeadline=''; fColor='#00e5a0'; fBankId='';
+      showToast(isPurchase ? 'Added to purchase list!' : 'Goal created!');
+      showAdd=false; fName=''; fTarget=''; fCurrent=''; fDeadline=''; fColor='#00e5a0'; fBankId=''; fPriority=''; fLink='';
       load();
     } catch(e) { showToast(e.message,'error'); }
   }
@@ -56,6 +74,7 @@
   function openEdit(g) {
     editGoal=g; eName=g.name; eTarget=g.target; eCurrent=g.current;
     eDeadline=g.deadline?.slice(0,7)||''; eColor=g.color; eBankId=g.bank_id||'';
+    ePriority=g.priority||''; eLink=g.link||'';
     showEdit=true;
   }
 
@@ -64,6 +83,7 @@
       await api.patch(`/goals/${editGoal.id}`, {
         name:eName, target:parseFloat(eTarget), current:parseFloat(eCurrent)||0,
         deadline:eDeadline||null, color:eColor, bank_id:eBankId||null,
+        priority:ePriority||null, link:eLink||null,
       });
       showToast('Goal updated!'); showEdit=false; editGoal=null; load();
     } catch(e) { showToast(e.message,'error'); }
@@ -73,6 +93,30 @@
     if (!confirm('Delete this goal?')) return;
     try { await api.delete(`/goals/${id}`); showToast('Deleted!'); load(); }
     catch(e) { showToast(e.message,'error'); }
+  }
+
+  async function togglePurchased(g) {
+    try {
+      await api.patch(`/goals/${g.id}`, { purchased: !g.purchased });
+      showToast(g.purchased ? 'Moved back to your list' : `Bought "${g.name}" 🎉`);
+      load();
+    } catch(e) { showToast(e.message,'error'); }
+  }
+
+  // ── Paste a purchase list: one item per line, e.g. "iPhone 17 - 4999" ────
+  $: bulkParsed = parseList(bulkText);
+  $: bulkValid = bulkParsed.filter(p => p.item).map(p => p.item);
+
+  async function saveBulk() {
+    if (!bulkValid.length) return showToast('Nothing to add — use "Item - price" per line','error');
+    try {
+      await api.post('/goals', { items: bulkValid.map((it, i) => ({
+        name: it.name, target: it.amount, deadline: it.due_date, kind: 'purchase',
+        priority: bulkPriority || null, color: GOAL_COLORS[i % GOAL_COLORS.length],
+      })) });
+      showToast(`Added ${bulkValid.length} item${bulkValid.length!==1?'s':''}!`);
+      showBulk=false; bulkText=''; bulkPriority=''; load();
+    } catch(e) { showToast(e.message,'error'); }
   }
 
   function openContribute(g) { contributeGoal=g; cAmount=''; cNote=''; cTxId=''; showContribute=true; }
@@ -148,19 +192,41 @@
     return new Date(y,m-1,1).toLocaleDateString('en-GB',{month:'short',year:'numeric'});
   }
 
-  $: totalTarget  = goals.reduce((s,g)=>s+Number(g.target),0);
-  $: totalSaved   = goals.reduce((s,g)=>s+Number(g.current),0);
-  $: doneCount    = goals.filter(g=>Number(g.current)>=Number(g.target)).length;
+  const prioRank = p => ({ High:0, Medium:1, Low:2 }[p] ?? 3);
+
+  $: isPurchase   = tab === 'purchase';
+  $: tabGoals     = goals.filter(g => (g.kind || 'savings') === tab);
+  $: shown        = isPurchase
+    ? tabGoals.filter(g => !g.purchased).sort((a,b) => prioRank(a.priority) - prioRank(b.priority))
+    : tabGoals;
+  $: bought       = isPurchase ? tabGoals.filter(g => g.purchased) : [];
+  $: savingsCount  = goals.filter(g => (g.kind || 'savings') === 'savings').length;
+  $: purchaseCount = goals.filter(g => g.kind === 'purchase' && !g.purchased).length;
+  $: totalTarget  = shown.reduce((s,g)=>s+Number(g.target),0);
+  $: totalSaved   = shown.reduce((s,g)=>s+Number(g.current),0);
+  $: doneCount    = shown.filter(g=>Number(g.current)>=Number(g.target)).length;
   $: shortageGoals = goals.filter(g=>g.has_shortage);
 </script>
 
 <div class="fade-in space">
   <div class="page-hdr">
     <div>
-      <h2 class="page-title">Savings Goals</h2>
-      <p class="page-sub">Track your financial targets and stay motivated</p>
+      <h2 class="page-title">{isPurchase ? 'Purchase Goals' : 'Savings Goals'}</h2>
+      <p class="page-sub">{isPurchase ? 'Things you plan to buy next — save up for each one' : 'Track your financial targets and stay motivated'}</p>
     </div>
-    <button class="btn-primary" on:click={() => showAdd=true}>+ New Goal</button>
+    <div class="hdr-btns">
+      {#if isPurchase}<button class="btn-secondary" on:click={() => showBulk=true}>Paste a list</button>{/if}
+      <button class="btn-primary" on:click={() => showAdd=true}>{isPurchase ? '+ Add Item' : '+ New Goal'}</button>
+    </div>
+  </div>
+
+  <div class="kind-tabs" role="tablist">
+    <button role="tab" aria-selected={!isPurchase} class:active={!isPurchase} on:click={() => setTab('savings')}>
+      🎯 Savings <span class="tab-count">{savingsCount}</span>
+    </button>
+    <button role="tab" aria-selected={isPurchase} class:active={isPurchase} on:click={() => setTab('purchase')}>
+      🛒 Purchases <span class="tab-count">{purchaseCount}</span>
+    </button>
   </div>
 
   <!-- Shortage alert banner -->
@@ -178,23 +244,26 @@
 
   {#if loading}
     <FunLoader />
-  {:else if goals.length === 0}
+  {:else if shown.length === 0 && bought.length === 0}
     <div class="glass empty-state">
-      <div class="empty-icon">🎯</div>
-      <p class="empty-title">No savings goals yet</p>
-      <p class="empty-sub">Create your first goal to start tracking progress</p>
-      <button class="btn-primary" style="margin-top:8px" on:click={() => showAdd=true}>+ Create Goal</button>
+      <div class="empty-icon">{isPurchase ? '🛒' : '🎯'}</div>
+      <p class="empty-title">{isPurchase ? 'No purchase goals yet' : 'No savings goals yet'}</p>
+      <p class="empty-sub">{isPurchase ? 'Add the things you want to buy next, or paste your whole list' : 'Create your first goal to start tracking progress'}</p>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+        {#if isPurchase}<button class="btn-secondary" on:click={() => showBulk=true}>Paste a list</button>{/if}
+        <button class="btn-primary" on:click={() => showAdd=true}>{isPurchase ? '+ Add Item' : '+ Create Goal'}</button>
+      </div>
     </div>
   {:else}
 
     <!-- Summary bar -->
     <div class="summary-bar glass">
       <div class="summary-item">
-        <span class="summary-label">Total Goals</span>
-        <span class="summary-val">{goals.length}</span>
+        <span class="summary-label">{isPurchase ? 'Items to Buy' : 'Total Goals'}</span>
+        <span class="summary-val">{shown.length}</span>
       </div>
       <div class="summary-item">
-        <span class="summary-label">Total Target</span>
+        <span class="summary-label">{isPurchase ? 'Total Cost' : 'Total Target'}</span>
         <span class="summary-val mono">{fmt(totalTarget)}</span>
       </div>
       <div class="summary-item">
@@ -202,14 +271,18 @@
         <span class="summary-val mono pos">{fmt(totalSaved)}</span>
       </div>
       <div class="summary-item">
-        <span class="summary-label">Achieved</span>
-        <span class="summary-val">{doneCount} / {goals.length}</span>
+        <span class="summary-label">{isPurchase ? 'Ready to Buy' : 'Achieved'}</span>
+        <span class="summary-val">{doneCount} / {shown.length}</span>
       </div>
     </div>
 
+    {#if isPurchase && shown.length === 0}
+      <div class="glass empty-state" style="padding:32px">🎉 You've bought everything on your list!</div>
+    {/if}
+
     <!-- Goal cards -->
     <div class="goals-grid">
-      {#each goals as g}
+      {#each shown as g (g.id)}
         {@const p = parseFloat(pct(g))}
         {@const rem = remaining(g)}
         {@const done = Number(g.current) >= Number(g.target)}
@@ -222,7 +295,8 @@
             <div class="goal-title-row">
               <span class="goal-dot" style="background:{g.color}"></span>
               <h3 class="goal-name">{g.name}</h3>
-              {#if done}<span class="badge-done">✓ Achieved!</span>{/if}
+              {#if isPurchase && g.priority}<span class="badge-prio prio-{g.priority.toLowerCase()}">{g.priority}</span>{/if}
+              {#if done}<span class="badge-done">{isPurchase ? '✓ Ready to buy' : '✓ Achieved!'}</span>{/if}
               {#if g.has_shortage}<span class="badge-shortage">⚠️ Shortage</span>{/if}
             </div>
             <div class="goal-actions">
@@ -249,6 +323,9 @@
               {/if}
             </p>
           {/if}
+          {#if g.link}
+            <a class="item-link" href={g.link} target="_blank" rel="noopener noreferrer">🔗 View item</a>
+          {/if}
 
           <!-- Progress bar -->
           <div class="progress-track">
@@ -266,7 +343,7 @@
             </div>
             <div class="amount-div"></div>
             <div class="amount-item">
-              <span class="amount-label">Target</span>
+              <span class="amount-label">{isPurchase ? 'Price' : 'Target'}</span>
               <span class="amount-val mono">{fmt(g.target)}</span>
             </div>
             <div class="amount-div"></div>
@@ -295,6 +372,9 @@
                 {expandedGoalId === g.id ? '▲ Hide Txs' : '▼ Transactions'}
               </button>
               <button class="add-savings-btn" on:click={() => openContribute(g)}>+ Add Savings</button>
+              {#if isPurchase}
+                <button class="bought-btn" on:click={() => togglePurchased(g)} title="Mark as bought">✓ Bought</button>
+              {/if}
             </div>
           </div>
 
@@ -336,18 +416,40 @@
         </div>
       {/each}
     </div>
+
+    {#if bought.length}
+      <button class="toggle-bought" on:click={() => showBought = !showBought}>
+        {showBought ? '▾' : '▸'} Bought ({bought.length})
+      </button>
+      {#if showBought}
+        <div class="glass bought-list">
+          {#each bought as g (g.id)}
+            <div class="bought-row">
+              <span class="goal-dot" style="background:{g.color}"></span>
+              <span class="bought-name">{g.name}</span>
+              <span class="muted bought-date">{g.purchased_at ? `Bought ${String(g.purchased_at).slice(0,10)}` : ''}</span>
+              <span class="mono">{fmt(g.target)}</span>
+              <button class="icon-btn" on:click={() => togglePurchased(g)} title="Move back to list">↩</button>
+              <button class="icon-btn" on:click={() => deleteGoal(g.id)} title="Delete">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              </button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
   {/if}
 </div>
 
 <!-- Add Goal Modal -->
-<Modal title="Create Savings Goal" bind:show={showAdd} onClose={() => showAdd=false}>
+<Modal title={isPurchase ? 'Add Purchase Goal' : 'Create Savings Goal'} bind:show={showAdd} onClose={() => showAdd=false}>
   <div class="form-group">
-    <label for="g-name">Goal Name</label>
-    <input id="g-name" class="input-field" placeholder="Japan Trip" bind:value={fName} autofocus>
+    <label for="g-name">{isPurchase ? 'What do you want to buy?' : 'Goal Name'}</label>
+    <input id="g-name" class="input-field" placeholder={isPurchase ? 'New laptop' : 'Japan Trip'} bind:value={fName} autofocus>
   </div>
   <div class="form-row">
     <div class="form-group">
-      <label for="g-target">Target (RM)</label>
+      <label for="g-target">{isPurchase ? 'Price (RM)' : 'Target (RM)'}</label>
       <input id="g-target" class="input-field" type="number" step="0.01" placeholder="5000" bind:value={fTarget}>
     </div>
     <div class="form-group">
@@ -368,6 +470,21 @@
       </select>
     </div>
   </div>
+  {#if isPurchase}
+    <div class="form-row">
+      <div class="form-group">
+        <label for="g-prio">Priority</label>
+        <select id="g-prio" class="input-field" bind:value={fPriority}>
+          <option value="">—</option>
+          {#each PRIORITIES as p}<option>{p}</option>{/each}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="g-link">Product link (optional)</label>
+        <input id="g-link" class="input-field" type="url" placeholder="https://shopee.com.my/…" bind:value={fLink}>
+      </div>
+    </div>
+  {/if}
   <div class="form-group">
     <label>Colour</label>
     <div class="color-row">
@@ -378,7 +495,7 @@
   </div>
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showAdd=false}>Cancel</button>
-    <button class="btn-primary" on:click={addGoal}>Create Goal</button>
+    <button class="btn-primary" on:click={addGoal}>{isPurchase ? 'Add Item' : 'Create Goal'}</button>
   </div>
 </Modal>
 
@@ -411,6 +528,21 @@
       </select>
     </div>
   </div>
+  {#if editGoal?.kind === 'purchase'}
+    <div class="form-row">
+      <div class="form-group">
+        <label for="eg-prio">Priority</label>
+        <select id="eg-prio" class="input-field" bind:value={ePriority}>
+          <option value="">—</option>
+          {#each PRIORITIES as p}<option>{p}</option>{/each}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="eg-link">Product link</label>
+        <input id="eg-link" class="input-field" type="url" bind:value={eLink}>
+      </div>
+    </div>
+  {/if}
   <div class="form-group">
     <label>Colour</label>
     <div class="color-row">
@@ -422,6 +554,35 @@
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showEdit=false}>Cancel</button>
     <button class="btn-primary" on:click={saveEdit}>Save Changes</button>
+  </div>
+</Modal>
+
+<!-- Paste purchase list -->
+<Modal title="Paste your purchase list" bind:show={showBulk} onClose={() => showBulk=false}>
+  <p class="muted" style="font-size:13px;margin-bottom:10px">One item per line — name and price, optionally a target date (YYYY-MM-DD).</p>
+  <textarea class="input-field bulk-text" rows="8" bind:value={bulkText}
+    placeholder={"MacBook Air - 4999\nRobot vacuum RM 1,299\nOffice chair 650 2026-12-01"}></textarea>
+  <div class="form-group" style="margin-top:12px">
+    <label for="bulk-prio">Priority for all (optional)</label>
+    <select id="bulk-prio" class="input-field" bind:value={bulkPriority}>
+      <option value="">—</option>
+      {#each PRIORITIES as p}<option>{p}</option>{/each}
+    </select>
+  </div>
+  {#if bulkParsed.length}
+    <div class="preview">
+      {#each bulkParsed as p}
+        {#if p.item}
+          <div class="pv ok"><span>{p.item.name}{p.item.due_date ? ` · ${p.item.due_date}` : ''}</span><span class="mono">{fmt(p.item.amount)}</span></div>
+        {:else}
+          <div class="pv bad"><span>{p.line}</span><span>no price — skipped</span></div>
+        {/if}
+      {/each}
+    </div>
+  {/if}
+  <div class="modal-actions">
+    <button class="btn-secondary" on:click={() => showBulk=false}>Cancel</button>
+    <button class="btn-primary" on:click={saveBulk} disabled={!bulkValid.length}>Add {bulkValid.length || ''} item{bulkValid.length!==1?'s':''}</button>
   </div>
 </Modal>
 
@@ -504,6 +665,35 @@
   .page-hdr    { display:flex; align-items:flex-start; justify-content:space-between; }
   .page-title  { font-size:20px; font-weight:700; }
   .page-sub    { font-size:12px; color:var(--text2); margin-top:3px; }
+  .hdr-btns    { display:flex; gap:8px; }
+
+  /* Savings / Purchases tabs */
+  .kind-tabs { display:flex; gap:4px; background:var(--surface2); border-radius:10px; padding:4px; width:fit-content; }
+  .kind-tabs button { background:none; border:none; cursor:pointer; color:var(--text2); font-size:13px; font-weight:600; padding:8px 16px; border-radius:8px; display:flex; align-items:center; gap:6px; transition:all .15s; }
+  .kind-tabs button.active { background:var(--accent); color:#0a0e17; }
+  .tab-count { font-size:10px; background:rgba(0,0,0,.15); padding:1px 7px; border-radius:20px; }
+
+  /* Purchase goals */
+  .badge-prio { font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; }
+  .prio-high   { background:rgba(255,92,124,.15); color:var(--danger); }
+  .prio-medium { background:rgba(255,180,71,.15); color:var(--warning); }
+  .prio-low    { background:rgba(255,255,255,.08); color:var(--text2); }
+  .item-link { font-size:12px; color:var(--accent); width:fit-content; text-decoration:none; }
+  .item-link:hover { text-decoration:underline; }
+  .bought-btn { background:rgba(0,229,160,.12); border:1px solid rgba(0,229,160,.3); color:var(--accent); padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; transition:background .15s; }
+  .bought-btn:hover { background:rgba(0,229,160,.25); }
+  .toggle-bought { align-self:flex-start; background:none; border:none; color:var(--text2); font-size:13px; font-weight:600; cursor:pointer; padding:4px 0; }
+  .bought-list { display:flex; flex-direction:column; }
+  .bought-row  { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--border); font-size:13px; opacity:.75; }
+  .bought-row:last-child { border-bottom:none; }
+  .bought-name { flex:1; min-width:0; text-decoration:line-through; overflow-wrap:anywhere; }
+  .bought-date { font-size:11px; }
+  .bulk-text { width:100%; resize:vertical; font-family:inherit; }
+  .preview { margin-top:10px; max-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
+  .pv { display:flex; justify-content:space-between; gap:10px; font-size:12px; padding:6px 10px; border-radius:8px; }
+  .pv span:first-child { min-width:0; overflow-wrap:anywhere; }
+  .pv.ok  { background:rgba(0,229,160,.08); }
+  .pv.bad { background:rgba(255,92,124,.08); color:var(--danger); }
 
   /* Shortage banner */
   .shortage-banner { display:flex; align-items:flex-start; gap:12px; padding:14px 18px; background:rgba(255,92,124,.08); border:1px solid rgba(255,92,124,.25); border-radius:10px; }
@@ -619,7 +809,11 @@
     .color-row    { gap:10px; }
   }
   @media(max-width:500px){
-    .page-hdr > .btn-primary { width:100%; }
+    .page-hdr > .btn-primary, .hdr-btns { width:100%; }
+    .hdr-btns > button { flex:1; justify-content:center; }
+    .kind-tabs { width:100%; }
+    .kind-tabs button { flex:1; justify-content:center; }
+    .bought-date { display:none; }
     .footer-btns  { width:100%; }
     .footer-btns > button { flex:1; }
     .form-row     { grid-template-columns:1fr; gap:0; }

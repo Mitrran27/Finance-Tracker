@@ -4,6 +4,7 @@
   import { fmt, showToast, CATEGORIES, today } from '$lib/stores.js';
   import Modal from '$lib/components/Modal.svelte';
   import FunLoader from '$lib/components/FunLoader.svelte';
+  import { parseList } from '$lib/parseList.js';
 
   let bills = [], loading = true;
   let showForm = false, editing = null;
@@ -60,19 +61,7 @@
   }
 
   // ── Bulk add: one expense per line, e.g. "Car loan - 850" or "PTPTN, RM 200, 2026-11-05"
-  function parseLine(line) {
-    const date = line.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1] || null;
-    let rest = date ? line.replace(date, '') : line;
-    const amt = [...rest.matchAll(/(?:RM\s*)?(\d[\d,]*(?:\.\d{1,2})?)/gi)].pop();
-    if (!amt) return null;
-    const name = (rest.slice(0, amt.index) + rest.slice(amt.index + amt[0].length))
-      .replace(/\s+/g, ' ').replace(/^[\s\-–:,|=]+|[\s\-–:,|=]+$/g, '');
-    if (!name) return null;
-    return { name, amount: parseFloat(amt[1].replace(/,/g, '')), due_date: date };
-  }
-
-  $: bulkLines = bulkText.split('\n').map(l => l.trim()).filter(Boolean);
-  $: bulkParsed = bulkLines.map(l => ({ line: l, item: parseLine(l) }));
+  $: bulkParsed = parseList(bulkText);
   $: bulkValid = bulkParsed.filter(p => p.item).map(p => p.item);
 
   async function saveBulk() {
@@ -226,7 +215,7 @@
   <p class="muted bulk-help">One expense per line — name and amount, optionally a due date (YYYY-MM-DD).</p>
   <textarea class="input-field" rows="8" bind:value={bulkText}
     placeholder={"Car loan - 850\nPTPTN - 200\nPhone bill RM 98.50 2026-11-05\nRent: 1,200"}></textarea>
-  {#if bulkLines.length}
+  {#if bulkParsed.length}
     <div class="preview">
       {#each bulkParsed as p}
         {#if p.item}

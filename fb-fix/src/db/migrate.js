@@ -182,6 +182,15 @@ try {
   await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS shortage_amount NUMERIC(12,2) DEFAULT 0`;
 } catch (e) {}
 
+// Purchase goals: same table, kind = 'purchase'
+try {
+  await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS kind VARCHAR(10) NOT NULL DEFAULT 'savings'`;
+  await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS priority VARCHAR(10)`;
+  await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS link VARCHAR(500)`;
+  await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS purchased BOOLEAN DEFAULT FALSE`;
+  await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS purchased_at DATE`;
+} catch (e) {}
+
 try {
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS goal_id INTEGER REFERENCES savings_goals(id) ON DELETE SET NULL`;
 } catch (e) {}

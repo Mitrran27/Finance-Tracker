@@ -6,6 +6,14 @@ import { sendEmail, buildReminderEmail } from '../mailer.js';
 const router = Router();
 router.use(authenticate);
 
+// DATE columns come back as local-midnight Date objects; send plain YYYY-MM-DD so
+// JSON's UTC conversion doesn't shift them to the previous day (or month).
+function day(d) {
+  if (!(d instanceof Date)) return d;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+const shape = g => ({ ...g, deadline: day(g.deadline), purchased_at: day(g.purchased_at) });
+
 // ── GET all goals ─────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
@@ -18,7 +26,7 @@ router.get('/', async (req, res) => {
       WHERE g.user_id = ${req.userId}
       ORDER BY g.created_at DESC
     `;
-    res.json(goals);
+    res.json(goals.map(shape));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -39,25 +47,37 @@ router.get('/:id/contributions', async (req, res) => {
 });
 
 // ── POST create goal ──────────────────────────────────────────────────────────
+// Accepts a single goal, or { items: [...] } to add a whole purchase list at once
 router.post('/', async (req, res) => {
   try {
-    const { name, target, current = 0, deadline, color = '#00e5a0', bank_id } = req.body;
-    if (!name || !target) return res.status(400).json({ error: 'name and target required' });
-    // Convert "YYYY-MM" (month picker) to "YYYY-MM-01" for PostgreSQL DATE type
-    const deadlineDate = deadline ? (deadline.length === 7 ? deadline + '-01' : deadline) : null;
-    const [goal] = await sql`
-      INSERT INTO savings_goals (user_id, name, target, current, deadline, color, bank_id)
-      VALUES (${req.userId}, ${name}, ${target}, ${current}, ${deadlineDate}, ${color}, ${bank_id ?? null})
-      RETURNING *
-    `;
-    res.status(201).json(goal);
+    const items = Array.isArray(req.body.items) ? req.body.items : [req.body];
+    if (items.length === 0) return res.status(400).json({ error: 'No goals given' });
+    for (const g of items) {
+      if (!g.name || !g.target) return res.status(400).json({ error: 'name and target required' });
+    }
+    const created = [];
+    for (const g of items) {
+      const { name, target, current = 0, deadline, color = '#00e5a0', bank_id, priority, link } = g;
+      const kind = g.kind === 'purchase' ? 'purchase' : 'savings';
+      // Convert "YYYY-MM" (month picker) to "YYYY-MM-01" for PostgreSQL DATE type
+      const deadlineDate = deadline ? (deadline.length === 7 ? deadline + '-01' : deadline) : null;
+      const [goal] = await sql`
+        INSERT INTO savings_goals (user_id, name, target, current, deadline, color, bank_id, kind, priority, link)
+        VALUES (${req.userId}, ${name}, ${target}, ${current}, ${deadlineDate}, ${color}, ${bank_id ?? null},
+                ${kind}, ${priority || null}, ${link || null})
+        RETURNING *
+      `;
+      created.push(shape(goal));
+    }
+    res.status(201).json(Array.isArray(req.body.items) ? created : created[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── PATCH update goal ─────────────────────────────────────────────────────────
 router.patch('/:id', async (req, res) => {
   try {
-    const { name, target, current, deadline, color, bank_id } = req.body;
+    const { name, target, current, deadline, color, bank_id, priority, link, purchased } = req.body;
+    const has = k => Object.prototype.hasOwnProperty.call(req.body, k);
     const deadlineDate = deadline ? (deadline.length === 7 ? deadline + '-01' : deadline) : null;
     const [goal] = await sql`
       UPDATE savings_goals SET
@@ -66,12 +86,18 @@ router.patch('/:id', async (req, res) => {
         current   = COALESCE(${current  ?? null}, current),
         deadline  = COALESCE(${deadlineDate ?? null}::date, deadline),
         color     = COALESCE(${color    ?? null}, color),
-        bank_id   = COALESCE(${bank_id  ?? null}, bank_id)
+        bank_id   = COALESCE(${bank_id  ?? null}, bank_id),
+        priority  = CASE WHEN ${has('priority')} THEN ${priority || null} ELSE priority END,
+        link      = CASE WHEN ${has('link')}     THEN ${link || null}     ELSE link END,
+        purchased = COALESCE(${purchased ?? null}, purchased),
+        purchased_at = CASE WHEN ${purchased ?? null}::boolean IS TRUE  THEN CURRENT_DATE
+                            WHEN ${purchased ?? null}::boolean IS FALSE THEN NULL
+                            ELSE purchased_at END
       WHERE id = ${req.params.id} AND user_id = ${req.userId}
       RETURNING *
     `;
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
-    res.json(goal);
+    res.json(shape(goal));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
