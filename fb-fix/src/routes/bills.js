@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import sql from '../db/client.js';
 import { authenticate } from '../middleware/auth.js';
+import { syncBill, refreshLinkedDebt } from './debts.js';
 
 const router = Router();
 router.use(authenticate);
@@ -35,8 +36,9 @@ router.post('/', async (req, res) => {
     const created = [];
     for (const b of items) {
       const [bill] = await sql`
-        INSERT INTO bills (user_id, name, amount, due_date, category, note)
-        VALUES (${req.userId}, ${String(b.name).trim()}, ${Number(b.amount)}, ${b.due_date || null}, ${b.category || null}, ${b.note || null})
+        INSERT INTO bills (user_id, name, amount, due_date, category, note, debt_id, commitment_id)
+        VALUES (${req.userId}, ${String(b.name).trim()}, ${Number(b.amount)}, ${b.due_date || null}, ${b.category || null}, ${b.note || null},
+                ${b.debt_id || null}, ${b.commitment_id || null})
         RETURNING *
       `;
       created.push(shape(bill));
@@ -47,8 +49,8 @@ router.post('/', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   try {
-    const { name, amount, due_date, category, note, settled } = req.body;
-    // due_date / category / note may be explicitly cleared with null
+    const { name, amount, due_date, category, note, settled, debt_id, commitment_id } = req.body;
+    // due_date / category / note / debt_id / commitment_id may be explicitly cleared with null
     const has = k => Object.prototype.hasOwnProperty.call(req.body, k);
     const [bill] = await sql`
       UPDATE bills SET
@@ -57,6 +59,8 @@ router.patch('/:id', async (req, res) => {
         due_date   = CASE WHEN ${has('due_date')} THEN ${due_date || null}::date ELSE due_date END,
         category   = CASE WHEN ${has('category')} THEN ${category || null} ELSE category END,
         note       = CASE WHEN ${has('note')}     THEN ${note || null}     ELSE note END,
+        debt_id       = CASE WHEN ${has('debt_id')}       THEN ${debt_id || null}::int       ELSE debt_id END,
+        commitment_id = CASE WHEN ${has('commitment_id')} THEN ${commitment_id || null}::int ELSE commitment_id END,
         settled    = COALESCE(${settled ?? null}, settled),
         settled_at = CASE WHEN ${settled ?? null}::boolean IS TRUE  THEN CURRENT_DATE
                           WHEN ${settled ?? null}::boolean IS FALSE THEN NULL
@@ -65,14 +69,18 @@ router.patch('/:id', async (req, res) => {
       RETURNING *
     `;
     if (!bill) return res.status(404).json({ error: 'Bill not found' });
+    // Settling a linked item pays its debt; un-settling or unlinking takes the payment back
+    await syncBill(req.userId, bill);
     res.json(shape(bill));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    const [deleted] = await sql`DELETE FROM bills WHERE id = ${req.params.id} AND user_id = ${req.userId} RETURNING id`;
+    const [deleted] = await sql`DELETE FROM bills WHERE id = ${req.params.id} AND user_id = ${req.userId} RETURNING *`;
     if (!deleted) return res.status(404).json({ error: 'Bill not found' });
+    // Its debt payment went with it (ON DELETE CASCADE)
+    await refreshLinkedDebt(req.userId, deleted);
     res.json({ message: 'Deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

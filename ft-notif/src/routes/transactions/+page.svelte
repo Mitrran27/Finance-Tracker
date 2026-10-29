@@ -410,7 +410,7 @@
       {/if}
       {#if commitments.length}
         <optgroup label="Commitment">
-          {#each commitments as c}<option value="c:{c.id}">{c.name} ({fmt(c.amount)}/mo)</option>{/each}
+          {#each commitments as c}<option value="c:{c.id}">{c.name} ({fmt(c.amount)}/mo){c.debt_name ? ` → ${c.debt_name}` : ''}</option>{/each}
         </optgroup>
       {/if}
     </select>
@@ -485,7 +485,7 @@
       {/if}
       {#if commitments.length}
         <optgroup label="Commitment">
-          {#each commitments as c}<option value="c:{c.id}">{c.name} ({fmt(c.amount)}/mo)</option>{/each}
+          {#each commitments as c}<option value="c:{c.id}">{c.name} ({fmt(c.amount)}/mo){c.debt_name ? ` → ${c.debt_name}` : ''}</option>{/each}
         </optgroup>
       {/if}
     </select>

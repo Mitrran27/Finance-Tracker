@@ -6,30 +6,45 @@
   import FunLoader from '$lib/components/FunLoader.svelte';
   import { parseList } from '$lib/parseList.js';
 
-  let bills = [], loading = true;
+  let bills = [], debts = [], commitments = [], loading = true;
   let showForm = false, editing = null;
   let showBulk = false, bulkText = '';
   let showSettled = false;
 
-  let fName = '', fAmount = '', fDue = '', fCategory = '', fNote = '';
+  let fName = '', fAmount = '', fDue = '', fCategory = '', fNote = '', fLink = '';
 
   onMount(load);
 
   async function load() {
     loading = true;
-    try { bills = await api.get('/bills'); }
+    try {
+      [bills, debts, commitments] = await Promise.all([
+        api.get('/bills'), api.get('/debts').catch(() => []), api.get('/commitments').catch(() => []),
+      ]);
+    }
     catch(e) { showToast(e.message, 'error'); }
     finally { loading = false; }
   }
 
+  // Settling an item can pay a debt or commitment: link is '', 'd:<id>' or 'c:<id>'
+  const linkOf = b => b.debt_id ? `d:${b.debt_id}` : b.commitment_id ? `c:${b.commitment_id}` : '';
+  function linkFields(link) {
+    const [kind, id] = link ? link.split(':') : [];
+    return { debt_id: kind === 'd' ? Number(id) : null, commitment_id: kind === 'c' ? Number(id) : null };
+  }
+  function linkLabel(b) {
+    if (b.debt_id) return debts.find(d => d.id === b.debt_id)?.name;
+    if (b.commitment_id) return commitments.find(c => c.id === b.commitment_id)?.name;
+  }
+
   function openAdd() {
-    editing = null; fName = ''; fAmount = ''; fDue = ''; fCategory = ''; fNote = '';
+    editing = null; fName = ''; fAmount = ''; fDue = ''; fCategory = ''; fNote = ''; fLink = '';
     showForm = true;
   }
 
   function openEdit(b) {
     editing = b; fName = b.name; fAmount = b.amount; fDue = b.due_date?.slice(0,10) || '';
-    fCategory = b.category || ''; fNote = b.note || '';
+    fCategory = b.category || ''; fNote = b.note || ''; fLink = linkOf(b);
     showForm = true;
   }
 
@@ -37,7 +52,7 @@
     const amount = parseFloat(fAmount);
     if (!fName.trim()) return showToast('Enter what the expense is for', 'error');
     if (isNaN(amount)) return showToast('Enter an amount', 'error');
-    const body = { name: fName, amount, due_date: fDue || null, category: fCategory || null, note: fNote || null };
+    const body = { name: fName, amount, due_date: fDue || null, category: fCategory || null, note: fNote || null, ...linkFields(fLink) };
     try {
       if (editing) await api.patch(`/bills/${editing.id}`, body);
       else await api.post('/bills', body);
@@ -49,7 +64,8 @@
   async function toggleSettled(b) {
     try {
       await api.patch(`/bills/${b.id}`, { settled: !b.settled });
-      showToast(b.settled ? 'Moved back to unsettled' : 'Marked as settled ✓');
+      const to = linkLabel(b);
+      showToast(b.settled ? 'Moved back to unsettled' : to ? `Settled ✓ — counted as a payment to ${to}` : 'Marked as settled ✓');
       load();
     } catch(e) { showToast(e.message, 'error'); }
   }
@@ -137,6 +153,7 @@
               <p class="meta">
                 <span class="due {due.cls}">{due.label}</span>
                 {#if b.category}<span class="tag">{b.category}</span>{/if}
+                {#if linkLabel(b)}<span class="tag link">{b.debt_id ? '➖' : '🏠'} {linkLabel(b)}</span>{/if}
                 {#if b.note}<span class="note">{b.note}</span>{/if}
               </p>
             </div>
@@ -163,10 +180,14 @@
               <button class="check on" on:click={() => toggleSettled(b)} title="Mark as unsettled" aria-label="Mark {b.name} as unsettled">✓</button>
               <div class="info">
                 <p class="name">{b.name}</p>
-                <p class="meta"><span class="due">Settled {b.settled_at?.slice(0,10) || ''}</span></p>
+                <p class="meta">
+                  <span class="due">Settled {b.settled_at?.slice(0,10) || ''}</span>
+                  {#if linkLabel(b)}<span class="tag link">{b.debt_id ? '➖' : '🏠'} {linkLabel(b)}</span>{/if}
+                </p>
               </div>
               <p class="amt mono">{fmt(b.amount)}</p>
               <div class="actions">
+                <button class="icon-btn" on:click={() => openEdit(b)} title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
                 <button class="icon-btn danger" on:click={() => remove(b)} title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
               </div>
             </div>
@@ -204,6 +225,25 @@
     <label for="bill-note">Note (optional)</label>
     <input id="bill-note" class="input-field" placeholder="Who to pay, account no., etc." bind:value={fNote}>
   </div>
+  {#if debts.length || commitments.length}
+  <div class="form-group">
+    <label for="bill-link">Pays towards (optional)</label>
+    <select id="bill-link" class="input-field" bind:value={fLink}>
+      <option value="">— Nothing —</option>
+      {#if debts.length}
+        <optgroup label="Debt">
+          {#each debts.filter(d => !d.cleared || fLink === `d:${d.id}`) as d}<option value="d:{d.id}">{d.name} ({fmt(d.amount - d.paid)} left)</option>{/each}
+        </optgroup>
+      {/if}
+      {#if commitments.length}
+        <optgroup label="Commitment">
+          {#each commitments as c}<option value="c:{c.id}">{c.name} ({fmt(c.amount)}/mo){c.debt_name ? ` → ${c.debt_name}` : ''}</option>{/each}
+        </optgroup>
+      {/if}
+    </select>
+    <p class="hint">When you tick it as settled, the amount counts as a payment.</p>
+  </div>
+  {/if}
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showForm = false}>Cancel</button>
     <button class="btn-primary" on:click={save}>{editing ? 'Update' : 'Add Expense'}</button>
@@ -269,6 +309,8 @@
   .due.overdue{color:var(--danger);font-weight:600;}
   .due.soon{color:var(--warning);font-weight:600;}
   .tag{background:var(--surface2);padding:1px 8px;border-radius:20px;}
+  .tag.link{background:rgba(124,92,252,.15);color:#a48bff;}
+  .hint{font-size:11px;color:var(--text2);margin-top:5px;}
   .note{overflow-wrap:anywhere;}
   .amt{font-weight:700;font-size:14px;white-space:nowrap;}
   .actions{display:flex;gap:2px;}

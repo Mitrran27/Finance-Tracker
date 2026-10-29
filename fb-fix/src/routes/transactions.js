@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import sql from '../db/client.js';
 import { authenticate } from '../middleware/auth.js';
-import { syncTxPayment, refreshCleared } from './debts.js';
+import { syncTx, refreshLinkedDebt } from './debts.js';
 
 const router = Router();
 router.use(authenticate);
@@ -83,10 +83,7 @@ router.post('/', async (req, res) => {
     if (type === 'income' && bank_id) {
       await sql`UPDATE bank_accounts SET balance = balance + ${amount} WHERE id = ${bank_id} AND user_id = ${req.userId}`;
     }
-    if (tx.debt_id) {
-      await syncTxPayment(req.userId, tx);
-      await refreshCleared(req.userId, tx.debt_id);
-    }
+    if (tx.debt_id || tx.commitment_id) await syncTx(req.userId, tx);
     res.status(201).json(tx);
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
@@ -119,11 +116,7 @@ router.patch('/:id', async (req, res) => {
       WHERE id = ${req.params.id} AND user_id = ${req.userId}
       RETURNING *
     `;
-    if (old.debt_id || tx.debt_id) {
-      await syncTxPayment(req.userId, tx);
-      await refreshCleared(req.userId, old.debt_id);
-      if (tx.debt_id !== old.debt_id) await refreshCleared(req.userId, tx.debt_id);
-    }
+    if (old.debt_id || old.commitment_id || tx.debt_id || tx.commitment_id) await syncTx(req.userId, tx);
     const newBankId = bank_id ?? old.bank_id;
     const newType   = type   ?? old.type;
     const newAmount = amount ?? old.amount;
@@ -138,8 +131,8 @@ router.delete('/:id', async (req, res) => {
   try {
     const [deleted] = await sql`DELETE FROM transactions WHERE id = ${req.params.id} AND user_id = ${req.userId} RETURNING *`;
     if (!deleted) return res.status(404).json({ error: 'Not found' });
-    // Its debt payment is removed by ON DELETE CASCADE
-    await refreshCleared(req.userId, deleted.debt_id);
+    // Its debt payment went with it (ON DELETE CASCADE)
+    await refreshLinkedDebt(req.userId, deleted);
     res.json({ message: 'Deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
   try {
     const uid = req.userId;
 
-    const [banks, txSummary, ccSummary, catSpend, monthly, upcomingEvents, recentNotes, fileCount, unreadCount, bills, debts, commitments] =
+    const [banks, txSummary, ccSummary, catSpend, monthly, upcomingEvents, recentNotes, fileCount, unreadCount, bills, debts] =
       await Promise.all([
         sql`SELECT id, name, balance FROM bank_accounts WHERE user_id = ${uid}`,
 
@@ -54,8 +54,6 @@ router.get('/', async (req, res) => {
           LEFT JOIN (SELECT debt_id, SUM(amount) AS paid FROM debt_payments GROUP BY debt_id) p ON p.debt_id = d.id
           WHERE d.user_id = ${uid} AND d.cleared = FALSE
         `.catch(() => []),
-
-        sql`SELECT id, amount::float AS amount FROM commitments WHERE user_id = ${uid}`.catch(() => []),
       ]);
 
     const totalBalance = banks.reduce((s, b) => s + Number(b.balance), 0);
@@ -76,7 +74,6 @@ router.get('/', async (req, res) => {
       unreadNotifications: unreadCount[0]?.count ?? 0,
       billsUnsettled: { count: bills[0]?.count ?? 0, total: bills[0]?.total ?? 0 },
       debtRemaining:  { count: debts[0]?.count ?? 0, total: debts[0]?.total ?? 0 },
-      commitments,
     });
   } catch (err) {
     console.error(err);

@@ -161,9 +161,9 @@
               {#each d.payments as p (p.id)}
                 <div class="pay-row">
                   <span class="pay-date">{p.date}</span>
-                  <span class="pay-note">{p.note || ''}{#if p.tx_id}<span class="tx-tag">from expense</span>{/if}</span>
+                  <span class="pay-note">{p.note || ''}{#if p.tx_id}<span class="tx-tag">from transaction</span>{:else if p.bill_id}<span class="tx-tag">from Expenses</span>{/if}</span>
                   <span class="mono pos">{fmt(p.amount)}</span>
-                  {#if p.tx_id}
+                  {#if p.tx_id || p.bill_id}
                     <span class="pay-del-spacer"></span>
                   {:else}
                     <button class="icon-btn danger" on:click={() => removePayment(d, p)} title="Remove payment" aria-label="Remove payment"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -225,7 +225,7 @@
 
 <Modal title={paying ? `Pay ${paying.name}` : 'Pay'} bind:show={showPay} onClose={() => showPay = false}>
   {#if paying}
-    <p class="muted pay-help">{fmt(remaining(paying))} left to pay. To count a payment in your expenses too, add it under Transactions and pick this debt in “Pays towards”.</p>
+    <p class="muted pay-help">{fmt(remaining(paying))} left to pay. To count a payment in your expenses too, link an expense to this debt instead (“Pays towards” in Transactions or Expenses), or link a commitment to it.</p>
   {/if}
   <div class="form-row">
     <div class="form-group">

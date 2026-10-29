@@ -241,6 +241,14 @@ try {
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS commitment_id INTEGER REFERENCES commitments(id) ON DELETE SET NULL`;
 } catch (e) {}
 
+// Settling an expense-list item can pay a debt or commitment; a commitment can pay off a debt
+try {
+  await sql`ALTER TABLE bills ADD COLUMN IF NOT EXISTS debt_id INTEGER REFERENCES debts(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE bills ADD COLUMN IF NOT EXISTS commitment_id INTEGER REFERENCES commitments(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS debt_id INTEGER REFERENCES debts(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE debt_payments ADD COLUMN IF NOT EXISTS bill_id INTEGER REFERENCES bills(id) ON DELETE CASCADE`;
+} catch (e) {}
+
   console.log('✅ All tables created successfully.');
   process.exit(0);
 }

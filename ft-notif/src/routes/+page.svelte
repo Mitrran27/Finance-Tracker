@@ -132,12 +132,12 @@
   $: expenseSlice = (() => { const s=pieXY(incomePct), e=pieXY(1); return `M 50 50 L ${s.x} ${s.y} A 40 40 0 ${incomePct<0.5?1:0} 1 ${e.x} ${e.y} Z`; })();
   $: hasIncomeData = mIncome > 0 || mExpense > 0;
 
-  // Commitments paid in the selected month, from expenses linked to them
-  $: commitmentsMonthly = (data?.commitments || []).reduce((s,c) => s + c.amount, 0);
-  $: commitmentsPaid    = monthTxs.filter(t => t.type==='expense' && t.commitment_id).reduce((s,t) => s + Number(t.amount), 0);
-  $: commitmentsPaidCount = (data?.commitments || []).filter(c =>
-    monthTxs.filter(t => t.type==='expense' && t.commitment_id === c.id).reduce((s,t) => s + Number(t.amount), 0) >= c.amount
-  ).length;
+  // Commitments with what was paid towards each in the selected month
+  let commitments = [];
+  $: api.get(`/commitments?month=${selectedMonth}`).then(c => commitments = c).catch(() => commitments = []);
+  $: commitmentsMonthly   = commitments.reduce((s,c) => s + Number(c.amount), 0);
+  $: commitmentsPaid      = commitments.reduce((s,c) => s + Number(c.paid_month), 0);
+  $: commitmentsPaidCount = commitments.filter(c => Number(c.paid_month) >= Number(c.amount)).length;
 
   // Category spending for selected month
   $: catSpending = (() => {
@@ -214,7 +214,7 @@
     <a href="/commitments" class="stat-card glass card-purple link-card">
       <span class="stat-label">Commitments</span>
       <p class="stat-val mono">{fmt(commitmentsPaid)} <span class="of">/ {fmt(commitmentsMonthly)}</span></p>
-      <p class="stat-sub">{data.commitments?.length ? `${commitmentsPaidCount} of ${data.commitments.length} paid in ${fmtMonth(selectedMonth)}` : 'None added'}</p>
+      <p class="stat-sub">{commitments.length ? `${commitmentsPaidCount} of ${commitments.length} paid in ${fmtMonth(selectedMonth)}` : 'None added'}</p>
     </a>
   </div>
 

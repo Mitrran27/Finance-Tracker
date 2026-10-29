@@ -16,10 +16,10 @@
   ];
   const typeOf = v => TYPES.find(t => t.value === v) || TYPES[TYPES.length - 1];
 
-  let items = [], banks = [], loading = true;
+  let items = [], banks = [], debts = [], loading = true;
   let showForm = false, editing = null;
 
-  let fName = '', fType = 'car', fAmount = '', fEnd = '', fDetails = '';
+  let fName = '', fType = 'car', fAmount = '', fEnd = '', fDetails = '', fDebt = '';
 
   // Paying adds an expense transaction linked to the commitment
   let showPay = false, paying = null;
@@ -28,6 +28,7 @@
   onMount(() => {
     load();
     api.get('/banks').then(b => banks = b).catch(() => {});
+    api.get('/debts').then(d => debts = d).catch(() => {});
   });
 
   async function load() {
@@ -51,19 +52,19 @@
         description: paying.name, category: paying.type === 'car' ? 'Transport' : 'Bills',
         commitment_id: paying.id,
       });
-      showToast(`${paying.name} paid — added to your expenses`);
+      showToast(`${paying.name} paid — added to your expenses${paying.debt_name ? ` and ${paying.debt_name}` : ''}`);
       showPay = false; paying = null; load();
     } catch(e) { showToast(e.message, 'error'); }
   }
 
   function openAdd() {
-    editing = null; fName = ''; fType = 'car'; fAmount = ''; fEnd = ''; fDetails = '';
+    editing = null; fName = ''; fType = 'car'; fAmount = ''; fEnd = ''; fDetails = ''; fDebt = '';
     showForm = true;
   }
 
   function openEdit(c) {
     editing = c; fName = c.name; fType = c.type || 'other'; fAmount = c.amount;
-    fEnd = c.end_date || ''; fDetails = c.details || '';
+    fEnd = c.end_date || ''; fDetails = c.details || ''; fDebt = c.debt_id || '';
     showForm = true;
   }
 
@@ -71,7 +72,7 @@
     const amount = parseFloat(fAmount);
     if (!fName.trim()) return showToast('Enter a name for the commitment', 'error');
     if (isNaN(amount)) return showToast('Enter the monthly amount', 'error');
-    const body = { name: fName, type: fType, amount, end_date: fEnd || null, details: fDetails || null };
+    const body = { name: fName, type: fType, amount, end_date: fEnd || null, details: fDetails || null, debt_id: fDebt ? Number(fDebt) : null };
     try {
       if (editing) await api.patch(`/commitments/${editing.id}`, body);
       else await api.post('/commitments', body);
@@ -147,6 +148,7 @@
             <p class="name">{c.name}</p>
             <p class="meta">
               <span class="tag">{t.label}</span>
+              {#if c.debt_name}<span class="tag link">➖ Pays off {c.debt_name}</span>{/if}
               {#if isPaid(c)}
                 <span class="status paid">✓ Paid this month</span>
               {:else if Number(c.paid_month) > 0}
@@ -191,6 +193,16 @@
     <label for="cm-end">Ends on (optional)</label>
     <input id="cm-end" class="input-field" type="date" bind:value={fEnd}>
   </div>
+  {#if debts.length}
+  <div class="form-group">
+    <label for="cm-debt">Pays off a debt (optional)</label>
+    <select id="cm-debt" class="input-field" bind:value={fDebt}>
+      <option value="">— No —</option>
+      {#each debts.filter(d => !d.cleared || d.id == fDebt) as d}<option value={d.id}>{d.name} ({fmt(d.amount - d.paid)} left)</option>{/each}
+    </select>
+    <p class="hint">Each payment of this commitment will also reduce that debt.</p>
+  </div>
+  {/if}
   <div class="form-group">
     <label for="cm-details">Details (optional)</label>
     <textarea id="cm-details" class="input-field" rows="3" placeholder="Bank, account no., loan tenure, payment day…" bind:value={fDetails}></textarea>
@@ -253,6 +265,8 @@
   .name{font-size:14px;font-weight:600;overflow-wrap:anywhere;}
   .meta{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:3px;font-size:11px;color:var(--text2);}
   .tag{background:var(--surface2);padding:1px 8px;border-radius:20px;}
+  .tag.link{background:rgba(124,92,252,.15);color:#a48bff;}
+  .hint{font-size:11px;color:var(--text2);margin-top:5px;}
   .details{margin-top:4px;font-size:12px;color:var(--text2);overflow-wrap:anywhere;white-space:pre-line;}
   .amt{font-weight:700;font-size:14px;white-space:nowrap;}
   .per{font-size:11px;font-weight:400;color:var(--text2);margin-left:2px;}
