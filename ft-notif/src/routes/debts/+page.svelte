@@ -8,8 +8,13 @@
   let debts = [], loading = true;
   let showForm = false, editing = null;
   let showCleared = false;
+  let expanded = {};
 
   let fName = '', fAmount = '', fDetails = '';
+
+  // Record a payment by hand
+  let showPay = false, paying = null;
+  let pAmount = '', pDate = today(), pNote = '';
 
   onMount(load);
 
@@ -52,17 +57,42 @@
   }
 
   async function remove(d) {
-    if (!confirm(`Delete "${d.name}"?`)) return;
+    if (!confirm(`Delete "${d.name}"? Its payment history goes with it.`)) return;
     try { await api.delete(`/debts/${d.id}`); showToast('Deleted!'); load(); }
     catch(e) { showToast(e.message, 'error'); }
   }
 
+  function openPay(d) {
+    paying = d; pAmount = ''; pDate = today(); pNote = '';
+    showPay = true;
+  }
+
+  async function savePayment() {
+    const amount = parseFloat(pAmount);
+    if (isNaN(amount) || amount <= 0) return showToast('Enter the amount you paid', 'error');
+    try {
+      await api.post(`/debts/${paying.id}/payments`, { amount, date: pDate || null, note: pNote || null });
+      showToast(amount >= remaining(paying) ? `${paying.name} is fully paid 🎉` : 'Payment recorded!');
+      expanded[paying.id] = true;
+      showPay = false; paying = null; load();
+    } catch(e) { showToast(e.message, 'error'); }
+  }
+
+  async function removePayment(d, p) {
+    if (!confirm(`Remove the ${fmt(p.amount)} payment on ${p.date}?`)) return;
+    try { await api.delete(`/debts/${d.id}/payments/${p.id}`); showToast('Payment removed'); load(); }
+    catch(e) { showToast(e.message, 'error'); }
+  }
+
+  const remaining = d => Math.max(0, Number(d.amount) - Number(d.paid));
+  const pct = d => Number(d.amount) > 0 ? Math.min(100, Number(d.paid) / Number(d.amount) * 100) : 0;
+
   $: outstanding = debts.filter(d => !d.cleared);
   $: cleared     = debts.filter(d => d.cleared);
-  $: totalOwed   = outstanding.reduce((s,d) => s + Number(d.amount), 0);
+  $: totalOwed   = outstanding.reduce((s,d) => s + remaining(d), 0);
   $: largest     = outstanding[0];
-  $: thisYear    = today().slice(0,4);
-  $: clearedThisYear = cleared.filter(d => d.cleared_at?.slice(0,4) === thisYear).reduce((s,d) => s + Number(d.amount), 0);
+  $: thisMonth   = today().slice(0,7);
+  $: paidThisMonth = debts.flatMap(d => d.payments || []).filter(p => p.date?.slice(0,7) === thisMonth).reduce((s,p) => s + Number(p.amount), 0);
 </script>
 
 <div class="fade-in space">
@@ -73,18 +103,18 @@
 
   <div class="stat-grid">
     <div class="stat-card glass card-red">
-      <p class="stat-label">Total debt</p>
+      <p class="stat-label">Debt to settle</p>
       <p class="stat-val mono neg">{fmt(totalOwed)}</p>
       <p class="stat-sub">{outstanding.length} debt{outstanding.length !== 1 ? 's' : ''}</p>
     </div>
     <div class="stat-card glass card-orange">
       <p class="stat-label">Largest</p>
-      <p class="stat-val mono">{largest ? fmt(largest.amount) : '—'}</p>
+      <p class="stat-val mono">{largest ? fmt(remaining(largest)) : '—'}</p>
       <p class="stat-sub">{largest?.name || 'none'}</p>
     </div>
     <div class="stat-card glass card-green">
-      <p class="stat-label">Cleared this year</p>
-      <p class="stat-val mono pos">{fmt(clearedThisYear)}</p>
+      <p class="stat-label">Paid this month</p>
+      <p class="stat-val mono pos">{fmt(paidThisMonth)}</p>
       <p class="stat-sub">keep going</p>
     </div>
   </div>
@@ -100,17 +130,48 @@
     {#if outstanding.length}
       <div class="glass list">
         {#each outstanding as d (d.id)}
+          <div class="item">
           <div class="row">
             <button class="check" on:click={() => toggleCleared(d)} title="Mark as cleared" aria-label="Mark {d.name} as cleared"></button>
             <div class="info">
               <p class="name">{d.name}</p>
               {#if d.details}<p class="details">{d.details}</p>{/if}
+              {#if Number(d.paid) > 0}
+                <div class="progress"><div class="bar" style="width:{pct(d)}%"></div></div>
+                <p class="paid">
+                  Paid {fmt(d.paid)} of {fmt(d.amount)} ·
+                  <button class="link-btn" on:click={() => expanded[d.id] = !expanded[d.id]}>
+                    {d.payments.length} payment{d.payments.length !== 1 ? 's' : ''} {expanded[d.id] ? '▾' : '▸'}
+                  </button>
+                </p>
+              {/if}
             </div>
-            <p class="amt mono">{fmt(d.amount)}</p>
+            <div class="amt-col">
+              <p class="amt mono">{fmt(remaining(d))}</p>
+              {#if Number(d.paid) > 0}<p class="amt-sub">left</p>{/if}
+            </div>
             <div class="actions">
+              <button class="pay-btn" on:click={() => openPay(d)}>Pay</button>
               <button class="icon-btn" on:click={() => openEdit(d)} title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
               <button class="icon-btn danger" on:click={() => remove(d)} title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
             </div>
+          </div>
+          {#if expanded[d.id] && d.payments.length}
+            <div class="history">
+              {#each d.payments as p (p.id)}
+                <div class="pay-row">
+                  <span class="pay-date">{p.date}</span>
+                  <span class="pay-note">{p.note || ''}{#if p.tx_id}<span class="tx-tag">from expense</span>{/if}</span>
+                  <span class="mono pos">{fmt(p.amount)}</span>
+                  {#if p.tx_id}
+                    <span class="pay-del-spacer"></span>
+                  {:else}
+                    <button class="icon-btn danger" on:click={() => removePayment(d, p)} title="Remove payment" aria-label="Remove payment"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
           </div>
         {/each}
       </div>
@@ -149,7 +210,7 @@
     <input id="debt-name" class="input-field" placeholder="e.g. Ali, personal loan, Mum" bind:value={fName}>
   </div>
   <div class="form-group">
-    <label for="debt-amt">Amount (RM)</label>
+    <label for="debt-amt">Total amount owed (RM)</label>
     <input id="debt-amt" class="input-field" type="number" step="0.01" placeholder="0.00" bind:value={fAmount}>
   </div>
   <div class="form-group">
@@ -159,6 +220,33 @@
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showForm = false}>Cancel</button>
     <button class="btn-primary" on:click={save}>{editing ? 'Update' : 'Add Debt'}</button>
+  </div>
+</Modal>
+
+<Modal title={paying ? `Pay ${paying.name}` : 'Pay'} bind:show={showPay} onClose={() => showPay = false}>
+  {#if paying}
+    <p class="muted pay-help">{fmt(remaining(paying))} left to pay. To count a payment in your expenses too, add it under Transactions and pick this debt in “Pays towards”.</p>
+  {/if}
+  <div class="form-row">
+    <div class="form-group">
+      <label for="pay-amt">Amount paid (RM)</label>
+      <input id="pay-amt" class="input-field" type="number" step="0.01" placeholder="0.00" bind:value={pAmount}>
+    </div>
+    <div class="form-group">
+      <label for="pay-date">Date</label>
+      <input id="pay-date" class="input-field" type="date" bind:value={pDate}>
+    </div>
+  </div>
+  {#if paying}
+    <button class="link-btn fill" on:click={() => pAmount = remaining(paying).toFixed(2)}>Pay the full {fmt(remaining(paying))}</button>
+  {/if}
+  <div class="form-group">
+    <label for="pay-note">Note (optional)</label>
+    <input id="pay-note" class="input-field" placeholder="e.g. October instalment" bind:value={pNote}>
+  </div>
+  <div class="modal-actions">
+    <button class="btn-secondary" on:click={() => showPay = false}>Cancel</button>
+    <button class="btn-primary" on:click={savePayment}>Record Payment</button>
   </div>
 </Modal>
 
@@ -184,7 +272,27 @@
 
   .list{display:flex;flex-direction:column;overflow:hidden;}
   .row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);}
-  .row:last-child{border-bottom:none;}
+  .row:last-child, .item:last-child .row:last-child{border-bottom:none;}
+  .item{border-bottom:1px solid var(--border);}
+  .item:last-child{border-bottom:none;}
+  .item .row{border-bottom:none;}
+  .progress{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:8px;max-width:260px;}
+  .bar{height:100%;background:var(--accent);border-radius:3px;transition:width .3s;}
+  .paid{margin-top:4px;font-size:11px;color:var(--text2);}
+  .link-btn{background:none;border:none;padding:0;color:var(--accent);font-size:inherit;font-weight:600;cursor:pointer;}
+  .link-btn.fill{font-size:12px;margin:-6px 0 14px;}
+  .amt-col{text-align:right;}
+  .amt-sub{font-size:10px;color:var(--text2);}
+  .pay-btn{background:rgba(0,229,160,.12);color:var(--accent);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-right:4px;}
+  .pay-btn:hover{background:rgba(0,229,160,.22);}
+  .history{padding:0 16px 12px 50px;display:flex;flex-direction:column;gap:2px;}
+  .pay-row{display:flex;align-items:center;gap:10px;font-size:12px;padding:4px 0;border-top:1px dashed var(--border);}
+  .pay-date{color:var(--text2);white-space:nowrap;}
+  .pay-note{flex:1;min-width:0;overflow-wrap:anywhere;}
+  .pay-del-spacer{width:22px;flex-shrink:0;}
+  .tx-tag{margin-left:6px;font-size:10px;background:rgba(124,92,252,.15);color:#a48bff;padding:1px 6px;border-radius:10px;}
+  .pay-help{margin-bottom:14px;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .row.done{opacity:.6;}
   .row.done .name{text-decoration:line-through;}
   .check{width:22px;height:22px;flex-shrink:0;border-radius:50%;border:2px solid var(--text2);background:none;cursor:pointer;color:#0a0e17;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;transition:all .15s;}
@@ -211,9 +319,14 @@
     .stat-card{padding:12px;}
     .row{padding:12px;gap:10px;flex-wrap:wrap;}
     .info{flex-basis:calc(100% - 34px);}
+    .amt-col{margin-left:32px;text-align:left;}
     .amt{margin-left:32px;}
-    .actions{margin-left:auto;}
+    .amt-col .amt{margin-left:0;}
+    .actions{margin-left:auto;align-items:center;}
     .icon-btn{min-width:36px;min-height:36px;}
+    .pay-btn{min-height:36px;padding:0 16px;}
+    .history{padding:0 12px 12px 44px;}
+    .form-row{grid-template-columns:1fr;gap:0;}
     .modal-actions > button{flex:1;justify-content:center;}
   }
 </style>

@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
   try {
     const uid = req.userId;
 
-    const [banks, txSummary, ccSummary, catSpend, monthly, upcomingEvents, recentNotes, fileCount, unreadCount] =
+    const [banks, txSummary, ccSummary, catSpend, monthly, upcomingEvents, recentNotes, fileCount, unreadCount, bills, debts, commitments] =
       await Promise.all([
         sql`SELECT id, name, balance FROM bank_accounts WHERE user_id = ${uid}`,
 
@@ -44,6 +44,18 @@ router.get('/', async (req, res) => {
         sql`SELECT COUNT(*)::int AS count FROM files WHERE user_id = ${uid}`,
 
         sql`SELECT COUNT(*)::int AS count FROM notifications WHERE user_id = ${uid} AND is_read = FALSE`,
+
+        // The newer tables may not be migrated yet; don't let that break the dashboard
+        sql`SELECT COUNT(*)::int AS count, COALESCE(SUM(amount),0)::float AS total FROM bills WHERE user_id = ${uid} AND settled = FALSE`.catch(() => []),
+
+        sql`
+          SELECT COUNT(*)::int AS count, COALESCE(SUM(GREATEST(d.amount - COALESCE(p.paid,0), 0)),0)::float AS total
+          FROM debts d
+          LEFT JOIN (SELECT debt_id, SUM(amount) AS paid FROM debt_payments GROUP BY debt_id) p ON p.debt_id = d.id
+          WHERE d.user_id = ${uid} AND d.cleared = FALSE
+        `.catch(() => []),
+
+        sql`SELECT id, amount::float AS amount FROM commitments WHERE user_id = ${uid}`.catch(() => []),
       ]);
 
     const totalBalance = banks.reduce((s, b) => s + Number(b.balance), 0);
@@ -62,6 +74,9 @@ router.get('/', async (req, res) => {
       recentNotes,
       fileCount: fileCount[0]?.count ?? 0,
       unreadNotifications: unreadCount[0]?.count ?? 0,
+      billsUnsettled: { count: bills[0]?.count ?? 0, total: bills[0]?.total ?? 0 },
+      debtRemaining:  { count: debts[0]?.count ?? 0, total: debts[0]?.total ?? 0 },
+      commitments,
     });
   } catch (err) {
     console.error(err);

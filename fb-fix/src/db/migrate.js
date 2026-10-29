@@ -195,6 +195,20 @@ async function migrate() {
     )
   `;
 
+  // Payments towards a debt: keyed in by hand, or from a linked expense (tx_id)
+  await sql`
+    CREATE TABLE IF NOT EXISTS debt_payments (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      debt_id     INTEGER NOT NULL REFERENCES debts(id) ON DELETE CASCADE,
+      tx_id       INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
+      amount      NUMERIC(12,2) NOT NULL,
+      date        DATE NOT NULL DEFAULT CURRENT_DATE,
+      note        VARCHAR(255),
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
   // Safely add new columns if upgrading existing DB
 try {
   await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS bank_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL`;
@@ -219,6 +233,12 @@ try {
 
 try {
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS goal_id INTEGER REFERENCES savings_goals(id) ON DELETE SET NULL`;
+} catch (e) {}
+
+// An expense can pay towards a debt or a commitment
+try {
+  await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS debt_id INTEGER REFERENCES debts(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS commitment_id INTEGER REFERENCES commitments(id) ON DELETE SET NULL`;
 } catch (e) {}
 
   console.log('✅ All tables created successfully.');

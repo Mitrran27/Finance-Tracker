@@ -12,11 +12,20 @@ function day(d) {
 }
 const shape = c => ({ ...c, end_date: day(c.end_date) });
 
+// ?month=YYYY-MM (the client's month, so timezones don't matter) adds paid_month:
+// the total of expenses linked to each commitment in that month
 router.get('/', async (req, res) => {
   try {
+    const month = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : null;
     const commitments = await sql`
-      SELECT * FROM commitments WHERE user_id = ${req.userId}
-      ORDER BY amount DESC, created_at ASC
+      SELECT c.*,
+        COALESCE((SELECT SUM(t.amount) FROM transactions t
+                  WHERE t.commitment_id = c.id AND t.type = 'expense'
+                    AND TO_CHAR(t.date, 'YYYY-MM') = COALESCE(${month}::text, TO_CHAR(CURRENT_DATE, 'YYYY-MM'))), 0)::float AS paid_month,
+        (SELECT TO_CHAR(MAX(t.date), 'YYYY-MM-DD') FROM transactions t
+         WHERE t.commitment_id = c.id AND t.type = 'expense') AS last_paid
+      FROM commitments c WHERE c.user_id = ${req.userId}
+      ORDER BY c.amount DESC, c.created_at ASC
     `;
     res.json(commitments.map(shape));
   } catch (err) { res.status(500).json({ error: err.message }); }

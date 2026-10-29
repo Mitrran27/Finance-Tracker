@@ -132,6 +132,13 @@
   $: expenseSlice = (() => { const s=pieXY(incomePct), e=pieXY(1); return `M 50 50 L ${s.x} ${s.y} A 40 40 0 ${incomePct<0.5?1:0} 1 ${e.x} ${e.y} Z`; })();
   $: hasIncomeData = mIncome > 0 || mExpense > 0;
 
+  // Commitments paid in the selected month, from expenses linked to them
+  $: commitmentsMonthly = (data?.commitments || []).reduce((s,c) => s + c.amount, 0);
+  $: commitmentsPaid    = monthTxs.filter(t => t.type==='expense' && t.commitment_id).reduce((s,t) => s + Number(t.amount), 0);
+  $: commitmentsPaidCount = (data?.commitments || []).filter(c =>
+    monthTxs.filter(t => t.type==='expense' && t.commitment_id === c.id).reduce((s,t) => s + Number(t.amount), 0) >= c.amount
+  ).length;
+
   // Category spending for selected month
   $: catSpending = (() => {
     const m = {};
@@ -185,6 +192,30 @@
       <p class="stat-val mono" class:pos={mIncome>=mExpense} class:neg={mIncome<mExpense}>{fmt(mIncome - mExpense)}</p>
       <p class="stat-sub">{fmtMonth(selectedMonth)}</p>
     </div>
+  </div>
+
+  <!-- What's still owed -->
+  <div class="stat-grid">
+    <div class="stat-card glass card-red">
+      <span class="stat-label">Month Expenses</span>
+      <p class="stat-val mono neg">{fmt(mExpense)}</p>
+      <p class="stat-sub">{monthTxs.filter(t=>t.type==='expense').length} transactions in {fmtMonth(selectedMonth)}</p>
+    </div>
+    <a href="/bills" class="stat-card glass card-orange link-card">
+      <span class="stat-label">Expenses to Settle</span>
+      <p class="stat-val mono">{fmt(data.billsUnsettled?.total)}</p>
+      <p class="stat-sub">{data.billsUnsettled?.count || 0} unsettled</p>
+    </a>
+    <a href="/debts" class="stat-card glass card-red link-card">
+      <span class="stat-label">Debt to Settle</span>
+      <p class="stat-val mono neg">{fmt(data.debtRemaining?.total)}</p>
+      <p class="stat-sub">{data.debtRemaining?.count ? `${data.debtRemaining.count} debt${data.debtRemaining.count !== 1 ? 's' : ''} left` : 'Debt free 🎉'}</p>
+    </a>
+    <a href="/commitments" class="stat-card glass card-purple link-card">
+      <span class="stat-label">Commitments</span>
+      <p class="stat-val mono">{fmt(commitmentsPaid)} <span class="of">/ {fmt(commitmentsMonthly)}</span></p>
+      <p class="stat-sub">{data.commitments?.length ? `${commitmentsPaidCount} of ${data.commitments.length} paid in ${fmtMonth(selectedMonth)}` : 'None added'}</p>
+    </a>
   </div>
 
   <!-- Charts -->
@@ -336,6 +367,9 @@
   .stat-label { display:block; font-size:12px; color:var(--text2); margin-bottom:8px; }
   .stat-val   { font-size:24px; font-weight:700; }
   .stat-sub   { font-size:12px; color:var(--text2); margin-top:4px; }
+  .of         { font-size:13px; font-weight:400; color:var(--text2); }
+  .link-card  { display:block; color:inherit; text-decoration:none; transition:transform .15s, border-color .15s; }
+  .link-card:hover { transform:translateY(-2px); }
   .pos { color:var(--accent); }
   .neg { color:var(--danger); }
 

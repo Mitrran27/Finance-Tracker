@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import sql from '../db/client.js';
 import { authenticate } from '../middleware/auth.js';
+import { syncTxPayment, refreshCleared } from './debts.js';
 
 const router = Router();
 router.use(authenticate);
@@ -70,14 +71,21 @@ router.post('/', async (req, res) => {
     const { bank_id, type, amount, description, category, date, is_savings = false } = req.body;
     if (!type || !amount || !date)
       return res.status(400).json({ error: 'type, amount and date are required' });
+    // Only expenses can pay towards a debt or commitment
+    const debt_id       = type === 'expense' ? (req.body.debt_id || null) : null;
+    const commitment_id = type === 'expense' ? (req.body.commitment_id || null) : null;
 
     const [tx] = await sql`
-      INSERT INTO transactions (user_id, bank_id, type, amount, description, category, date, is_savings)
-      VALUES (${req.userId}, ${bank_id ?? null}, ${type}, ${amount}, ${description ?? null}, ${category ?? null}, ${date}, ${is_savings})
+      INSERT INTO transactions (user_id, bank_id, type, amount, description, category, date, is_savings, debt_id, commitment_id)
+      VALUES (${req.userId}, ${bank_id ?? null}, ${type}, ${amount}, ${description ?? null}, ${category ?? null}, ${date}, ${is_savings}, ${debt_id}, ${commitment_id})
       RETURNING *
     `;
     if (type === 'income' && bank_id) {
       await sql`UPDATE bank_accounts SET balance = balance + ${amount} WHERE id = ${bank_id} AND user_id = ${req.userId}`;
+    }
+    if (tx.debt_id) {
+      await syncTxPayment(req.userId, tx);
+      await refreshCleared(req.userId, tx.debt_id);
     }
     res.status(201).json(tx);
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
@@ -88,6 +96,11 @@ router.patch('/:id', async (req, res) => {
     const { bank_id, type, amount, description, category, date, is_savings, goal_id } = req.body;
     const [old] = await sql`SELECT * FROM transactions WHERE id = ${req.params.id} AND user_id = ${req.userId}`;
     if (!old) return res.status(404).json({ error: 'Transaction not found' });
+    // debt_id / commitment_id may be explicitly cleared with null; income can't keep a link
+    const has = k => Object.prototype.hasOwnProperty.call(req.body, k);
+    const isExpense     = (type ?? old.type) === 'expense';
+    const debt_id       = isExpense ? (has('debt_id') ? req.body.debt_id || null : old.debt_id) : null;
+    const commitment_id = isExpense ? (has('commitment_id') ? req.body.commitment_id || null : old.commitment_id) : null;
     if (old.type === 'income' && old.bank_id) {
       await sql`UPDATE bank_accounts SET balance = balance - ${old.amount} WHERE id = ${old.bank_id} AND user_id = ${req.userId}`;
     }
@@ -100,10 +113,17 @@ router.patch('/:id', async (req, res) => {
         category    = COALESCE(${category    ?? null}, category),
         date        = COALESCE(${date        ?? null}::date, date),
         is_savings  = COALESCE(${is_savings  ?? null}, is_savings),
-        goal_id     = COALESCE(${goal_id     ?? null}, goal_id)
+        goal_id     = COALESCE(${goal_id     ?? null}, goal_id),
+        debt_id       = ${debt_id},
+        commitment_id = ${commitment_id}
       WHERE id = ${req.params.id} AND user_id = ${req.userId}
       RETURNING *
     `;
+    if (old.debt_id || tx.debt_id) {
+      await syncTxPayment(req.userId, tx);
+      await refreshCleared(req.userId, old.debt_id);
+      if (tx.debt_id !== old.debt_id) await refreshCleared(req.userId, tx.debt_id);
+    }
     const newBankId = bank_id ?? old.bank_id;
     const newType   = type   ?? old.type;
     const newAmount = amount ?? old.amount;
@@ -118,6 +138,8 @@ router.delete('/:id', async (req, res) => {
   try {
     const [deleted] = await sql`DELETE FROM transactions WHERE id = ${req.params.id} AND user_id = ${req.userId} RETURNING *`;
     if (!deleted) return res.status(404).json({ error: 'Not found' });
+    // Its debt payment is removed by ON DELETE CASCADE
+    await refreshCleared(req.userId, deleted.debt_id);
     res.json({ message: 'Deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

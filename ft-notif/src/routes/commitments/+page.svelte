@@ -16,18 +16,44 @@
   ];
   const typeOf = v => TYPES.find(t => t.value === v) || TYPES[TYPES.length - 1];
 
-  let items = [], loading = true;
+  let items = [], banks = [], loading = true;
   let showForm = false, editing = null;
 
   let fName = '', fType = 'car', fAmount = '', fEnd = '', fDetails = '';
 
-  onMount(load);
+  // Paying adds an expense transaction linked to the commitment
+  let showPay = false, paying = null;
+  let pAmount = '', pDate = today(), pBank = '';
+
+  onMount(() => {
+    load();
+    api.get('/banks').then(b => banks = b).catch(() => {});
+  });
 
   async function load() {
     loading = true;
-    try { items = await api.get('/commitments'); }
+    try { items = await api.get(`/commitments?month=${today().slice(0,7)}`); }
     catch(e) { showToast(e.message, 'error'); }
     finally { loading = false; }
+  }
+
+  function openPay(c) {
+    paying = c; pAmount = Number(c.amount).toFixed(2); pDate = today(); pBank = banks[0]?.id || '';
+    showPay = true;
+  }
+
+  async function savePayment() {
+    const amount = parseFloat(pAmount);
+    if (isNaN(amount) || amount <= 0) return showToast('Enter the amount you paid', 'error');
+    try {
+      await api.post('/transactions', {
+        type: 'expense', amount, date: pDate, bank_id: pBank || null,
+        description: paying.name, category: paying.type === 'car' ? 'Transport' : 'Bills',
+        commitment_id: paying.id,
+      });
+      showToast(`${paying.name} paid — added to your expenses`);
+      showPay = false; paying = null; load();
+    } catch(e) { showToast(e.message, 'error'); }
   }
 
   function openAdd() {
@@ -68,7 +94,11 @@
     return Math.max(0, (ey - ty) * 12 + (em - tm) + 1);
   }
 
+  const isPaid = c => Number(c.paid_month) >= Number(c.amount);
+
   $: monthly = items.reduce((s,c) => s + Number(c.amount), 0);
+  $: unpaid  = items.filter(c => !isPaid(c));
+  $: paidSoFar = items.reduce((s,c) => s + Number(c.paid_month || 0), 0);
   $: remaining = items.reduce((s,c) => {
     const m = monthsLeft(c);
     return m == null ? s : s + m * Number(c.amount);
@@ -88,9 +118,9 @@
       <p class="stat-sub">{items.length} commitment{items.length !== 1 ? 's' : ''}</p>
     </div>
     <div class="stat-card glass card-orange">
-      <p class="stat-label">Every year</p>
-      <p class="stat-val mono">{fmt(monthly * 12)}</p>
-      <p class="stat-sub">at current amounts</p>
+      <p class="stat-label">Paid this month</p>
+      <p class="stat-val mono">{fmt(paidSoFar)}</p>
+      <p class="stat-sub">{unpaid.length ? `${unpaid.length} still to pay` : items.length ? 'all paid ✓' : '—'}</p>
     </div>
     <div class="stat-card glass card-green">
       <p class="stat-label">Left to pay</p>
@@ -117,12 +147,20 @@
             <p class="name">{c.name}</p>
             <p class="meta">
               <span class="tag">{t.label}</span>
+              {#if isPaid(c)}
+                <span class="status paid">✓ Paid this month</span>
+              {:else if Number(c.paid_month) > 0}
+                <span class="status part">{fmt(c.paid_month)} paid this month</span>
+              {:else}
+                <span class="status due">Not paid this month</span>
+              {/if}
               {#if c.end_date}<span>Until {c.end_date}{left != null ? ` · ${left} month${left !== 1 ? 's' : ''} left` : ''}</span>{/if}
             </p>
             {#if c.details}<p class="details">{c.details}</p>{/if}
           </div>
           <p class="amt mono">{fmt(c.amount)}<span class="per">/mo</span></p>
           <div class="actions">
+            {#if !isPaid(c)}<button class="pay-btn" on:click={() => openPay(c)}>Pay</button>{/if}
             <button class="icon-btn" on:click={() => openEdit(c)} title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
             <button class="icon-btn danger" on:click={() => remove(c)} title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
           </div>
@@ -163,6 +201,31 @@
   </div>
 </Modal>
 
+<Modal title={paying ? `Pay ${paying.name}` : 'Pay'} bind:show={showPay} onClose={() => showPay = false}>
+  <p class="muted pay-help">This adds an expense under Transactions, linked to this commitment.</p>
+  <div class="form-row">
+    <div class="form-group">
+      <label for="cp-amt">Amount (RM)</label>
+      <input id="cp-amt" class="input-field" type="number" step="0.01" bind:value={pAmount}>
+    </div>
+    <div class="form-group">
+      <label for="cp-date">Date</label>
+      <input id="cp-date" class="input-field" type="date" bind:value={pDate}>
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="cp-bank">Paid from</label>
+    <select id="cp-bank" class="input-field" bind:value={pBank}>
+      <option value="">None</option>
+      {#each banks as b}<option value={b.id}>{b.name}</option>{/each}
+    </select>
+  </div>
+  <div class="modal-actions">
+    <button class="btn-secondary" on:click={() => showPay = false}>Cancel</button>
+    <button class="btn-primary" on:click={savePayment}>Add Payment</button>
+  </div>
+</Modal>
+
 <style>
   .space{display:flex;flex-direction:column;gap:16px;}
   .page-hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
@@ -193,7 +256,14 @@
   .details{margin-top:4px;font-size:12px;color:var(--text2);overflow-wrap:anywhere;white-space:pre-line;}
   .amt{font-weight:700;font-size:14px;white-space:nowrap;}
   .per{font-size:11px;font-weight:400;color:var(--text2);margin-left:2px;}
-  .actions{display:flex;gap:2px;}
+  .actions{display:flex;gap:2px;align-items:center;}
+  .status{font-weight:600;}
+  .status.paid{color:var(--accent);}
+  .status.part{color:var(--warning);}
+  .status.due{color:var(--text2);}
+  .pay-btn{background:rgba(0,229,160,.12);color:var(--accent);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-right:4px;}
+  .pay-btn:hover{background:rgba(0,229,160,.22);}
+  .pay-help{margin-bottom:14px;}
   .icon-btn{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.45);padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
   .icon-btn:hover{background:rgba(0,229,160,.12);color:var(--accent);}
   .icon-btn.danger:hover{background:rgba(255,92,124,.12);color:var(--danger);}
@@ -213,6 +283,7 @@
     .amt{margin-left:44px;}
     .actions{margin-left:auto;}
     .icon-btn{min-width:36px;min-height:36px;}
+    .pay-btn{min-height:36px;padding:0 16px;}
     .form-row{grid-template-columns:1fr;gap:0;}
     .modal-actions > button{flex:1;justify-content:center;}
   }

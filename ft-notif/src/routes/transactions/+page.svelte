@@ -5,13 +5,44 @@
   import Modal from '$lib/components/Modal.svelte';
   import FunLoader from '$lib/components/FunLoader.svelte';
 
-  let txs = [], banks = [], goals = [], loading = true;
+  let txs = [], banks = [], goals = [], debts = [], commitments = [], loading = true;
   let showAdd = false, showEdit = false;
   let editTx = null;
   let search = '', filterBank = '', dateFrom = '', dateTo = '', sort = 'date-desc';
 
-  let fType='expense', fAmount='', fDesc='', fCat='Food', fDate=today(), fBank='', fSavings=false, fGoalId='';
-  let eType='expense', eAmount='', eDesc='', eCat='Food', eDate=today(), eBank='', eSavings=false, eGoalId='';
+  let fType='expense', fAmount='', fDesc='', fCat='Food', fDate=today(), fBank='', fSavings=false, fGoalId='', fLink='';
+  let eType='expense', eAmount='', eDesc='', eCat='Food', eDate=today(), eBank='', eSavings=false, eGoalId='', eLink='';
+
+  // An expense can pay towards a debt or a commitment: link is '', 'd:<id>' or 'c:<id>'
+  function linkFields(type, link) {
+    const [kind, id] = type === 'expense' && link ? link.split(':') : [];
+    return { debt_id: kind === 'd' ? Number(id) : null, commitment_id: kind === 'c' ? Number(id) : null };
+  }
+  const linkOf = tx => tx.debt_id ? `d:${tx.debt_id}` : tx.commitment_id ? `c:${tx.commitment_id}` : '';
+
+  // Picking a debt/commitment fills in a blank amount/description and sets the category
+  function onLinkPicked(link, amount, desc) {
+    const [kind, id] = link ? link.split(':') : [];
+    if (kind === 'c') {
+      const c = commitments.find(c => c.id == id);
+      return { amount: amount || c?.amount || '', desc: desc || c?.name || '', cat: c?.type === 'car' ? 'Transport' : 'Bills' };
+    }
+    if (kind === 'd') {
+      const d = debts.find(d => d.id == id);
+      return { amount, desc: desc || (d ? `Debt payment – ${d.name}` : ''), cat: 'Bills' };
+    }
+    return null;
+  }
+  function pickAddLink() {
+    const r = onLinkPicked(fLink, fAmount, fDesc);
+    if (r) { fAmount = r.amount; fDesc = r.desc; fCat = r.cat; }
+  }
+  function pickEditLink() {
+    const r = onLinkPicked(eLink, eAmount, eDesc);
+    if (r) { eAmount = r.amount; eDesc = r.desc; }
+  }
+
+  $: openDebts = debts.filter(d => !d.cleared);
 
   function getBankSummary(bank) {
     const d = new Date();
@@ -33,7 +64,10 @@
   }
 
   onMount(async () => {
-    [banks, goals] = await Promise.all([api.get('/banks'), api.get('/goals').catch(()=>[])]);
+    [banks, goals, debts, commitments] = await Promise.all([
+      api.get('/banks'), api.get('/goals').catch(()=>[]),
+      api.get('/debts').catch(()=>[]), api.get('/commitments').catch(()=>[]),
+    ]);
     if (banks.length) fBank = banks[0].id;
     await loadTxs();
   });
@@ -60,11 +94,12 @@
       await api.post('/transactions', {
         type: fType, amount: parseFloat(fAmount), description: fDesc,
         category: fCat, date: fDate, bank_id: fBank || null, is_savings: fSavings,
-        goal_id: (fSavings && fGoalId) ? fGoalId : null
+        goal_id: (fSavings && fGoalId) ? fGoalId : null,
+        ...linkFields(fType, fLink)
       });
       showToast('Transaction added!');
-      showAdd = false; fAmount=''; fDesc=''; fSavings=false; fGoalId='';
-      banks = await api.get('/banks');
+      showAdd = false; fAmount=''; fDesc=''; fSavings=false; fGoalId=''; fLink='';
+      [banks, debts] = await Promise.all([api.get('/banks'), api.get('/debts').catch(()=>debts)]);
       loadTxs();
     } catch(e) { showToast(e.message, 'error'); }
   }
@@ -73,7 +108,7 @@
     editTx = tx;
     eType=tx.type; eAmount=tx.amount; eDesc=tx.description||'';
     eCat=tx.category||'Food'; eDate=tx.date?.slice(0,10)||today();
-    eBank=tx.bank_id||''; eSavings=tx.is_savings||false; eGoalId=tx.goal_id||'';
+    eBank=tx.bank_id||''; eSavings=tx.is_savings||false; eGoalId=tx.goal_id||''; eLink=linkOf(tx);
     showEdit = true;
   }
 
@@ -82,11 +117,12 @@
       await api.patch(`/transactions/${editTx.id}`, {
         type: eType, amount: parseFloat(eAmount), description: eDesc,
         category: eCat, date: eDate, bank_id: eBank || null, is_savings: eSavings,
-        goal_id: (eSavings && eGoalId) ? eGoalId : null
+        goal_id: (eSavings && eGoalId) ? eGoalId : null,
+        ...linkFields(eType, eLink)
       });
       showToast('Transaction updated!');
       showEdit = false; editTx = null;
-      banks = await api.get('/banks');
+      [banks, debts] = await Promise.all([api.get('/banks'), api.get('/debts').catch(()=>debts)]);
       loadTxs();
     } catch(e) { showToast(e.message, 'error'); }
   }
@@ -96,7 +132,7 @@
     try {
       await api.delete(`/transactions/${id}`);
       showToast('Deleted!');
-      banks = await api.get('/banks');
+      [banks, debts] = await Promise.all([api.get('/banks'), api.get('/debts').catch(()=>debts)]);
       loadTxs();
     } catch(e) { showToast(e.message, 'error'); }
   }
@@ -286,6 +322,8 @@
                   {tx.description || '-'}
                   {#if tx.is_savings}<span class="badge savings">💾 Savings</span>{/if}
                   {#if tx.goal_id}{@const g = goals.find(g=>g.id===tx.goal_id)}{#if g}<span class="badge goal">🎯 {g.name}</span>{/if}{/if}
+                  {#if tx.debt_id}{@const d = debts.find(d=>d.id===tx.debt_id)}{#if d}<span class="badge link">➖ {d.name}</span>{/if}{/if}
+                  {#if tx.commitment_id}{@const c = commitments.find(c=>c.id===tx.commitment_id)}{#if c}<span class="badge link">🏠 {c.name}</span>{/if}{/if}
                   {#if savingsDipTxIds.has(tx.id)}<span class="badge dip">⚠️ Used savings</span>{/if}
                 </td>
                 <td>
@@ -360,6 +398,24 @@
     </select>
   </div>
   {/if}
+  {#if fType === 'expense' && (openDebts.length || commitments.length)}
+  <div class="form-group">
+    <label for="f-link">Pays towards (optional)</label>
+    <select id="f-link" class="input-field" bind:value={fLink} on:change={pickAddLink}>
+      <option value="">— Nothing —</option>
+      {#if openDebts.length}
+        <optgroup label="Debt">
+          {#each openDebts as d}<option value="d:{d.id}">{d.name} ({fmt(d.amount - d.paid)} left)</option>{/each}
+        </optgroup>
+      {/if}
+      {#if commitments.length}
+        <optgroup label="Commitment">
+          {#each commitments as c}<option value="c:{c.id}">{c.name} ({fmt(c.amount)}/mo)</option>{/each}
+        </optgroup>
+      {/if}
+    </select>
+  </div>
+  {/if}
   <div class="modal-actions">
     <button class="btn-secondary" on:click={() => showAdd=false}>Cancel</button>
     <button class="btn-primary" on:click={addTx}>Add Transaction</button>
@@ -413,6 +469,25 @@
     <select id="e-goal" class="input-field" bind:value={eGoalId}>
       <option value="">— No goal —</option>
       {#each goals as g}<option value={g.id}>{g.name} ({fmt(g.current)} / {fmt(g.target)})</option>{/each}
+    </select>
+  </div>
+  {/if}
+  {#if eType === 'expense' && (debts.length || commitments.length)}
+  <div class="form-group">
+    <label for="e-link">Pays towards (optional)</label>
+    <select id="e-link" class="input-field" bind:value={eLink} on:change={pickEditLink}>
+      <option value="">— Nothing —</option>
+      {#if debts.length}
+        <optgroup label="Debt">
+          <!-- keep a cleared debt listed if this expense already pays it -->
+          {#each debts.filter(d => !d.cleared || eLink === `d:${d.id}`) as d}<option value="d:{d.id}">{d.name} ({fmt(d.amount - d.paid)} left)</option>{/each}
+        </optgroup>
+      {/if}
+      {#if commitments.length}
+        <optgroup label="Commitment">
+          {#each commitments as c}<option value="c:{c.id}">{c.name} ({fmt(c.amount)}/mo)</option>{/each}
+        </optgroup>
+      {/if}
     </select>
   </div>
   {/if}
@@ -476,6 +551,7 @@
   .badge.expense{background:rgba(255,92,124,.15);color:var(--danger);}
   .badge.savings{background:rgba(124,92,252,.15);color:var(--accent2);margin-left:6px;}
   .badge.goal{background:rgba(255,179,71,.15);color:#ffb347;margin-left:6px;}
+  .badge.link{background:rgba(124,92,252,.15);color:#a48bff;margin-left:6px;}
   .badge.dip{background:rgba(255,92,124,.15);color:var(--danger);margin-left:6px;font-size:10px;}
   .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .form-group{margin-bottom:14px;}
