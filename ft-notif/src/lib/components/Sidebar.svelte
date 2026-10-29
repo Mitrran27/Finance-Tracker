@@ -10,7 +10,9 @@
     { href: '/banks',        label: 'Bank Accounts', icon: 'landmark' },
     { href: '/transactions', label: 'Transactions',  icon: 'arrows' },
     { href: '/credit',       label: 'Credit Cards',  icon: 'card' },
-    { href: '/bills',        label: 'To Settle',     icon: 'bills' },
+    { href: '/bills',        label: 'Expenses',      icon: 'bills' },
+    { href: '/debts',        label: 'Debt',          icon: 'debt' },
+    { href: '/commitments',  label: 'Commitments',   icon: 'commitments' },
     { href: '/drive',        label: 'Drive',         icon: 'drive' },
     { href: '/calendar',     label: 'Calendar',      icon: 'calendar',    tooltip: 'Email reminders may not work because current hosting blocks Gmail SMTP.' },
     { href: '/notes',        label: 'Notes',         icon: 'note' },
@@ -62,6 +64,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
         {:else if item.icon === 'bills'}
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 .67V2l-1 .67L16 2l-3 2-3-2-3 2-3-2Z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>
+        {:else if item.icon === 'debt'}
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+        {:else if item.icon === 'commitments'}
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         {:else if item.icon === 'drive'}
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
         {:else if item.icon === 'calendar'}

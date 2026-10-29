@@ -93,7 +93,7 @@
 
 <div class="fade-in space">
   <div class="page-hdr">
-    <p class="count">{unsettled.length} to settle · {settled.length} settled</p>
+    <p class="count">{unsettled.length} unsettled · {settled.length} settled</p>
     <div class="hdr-actions">
       <button class="btn-secondary" on:click={() => showBulk = true}>Paste a list</button>
       <button class="btn-primary" on:click={openAdd}>+ Add Expense</button>
