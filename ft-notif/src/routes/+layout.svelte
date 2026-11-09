@@ -101,6 +101,7 @@
     '/bills':        'Expenses',
     '/debts':        'Debt',
     '/commitments':  'Commitments',
+    '/mom':          'Mom',
     '/drive':       'Drive',
     '/calendar':     'Calendar',
     '/notes':        'Notes',

@@ -209,6 +209,20 @@ async function migrate() {
     )
   `;
 
+  // Money sent to Mom, linked to the "Amma" expense in Expenses
+  await sql`
+    CREATE TABLE IF NOT EXISTS mom_transfers (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      bill_id     INTEGER REFERENCES bills(id) ON DELETE SET NULL,
+      month       DATE NOT NULL,
+      date        DATE NOT NULL,
+      amount      NUMERIC(12,2) NOT NULL,
+      note        VARCHAR(255),
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
   // Safely add new columns if upgrading existing DB
 try {
   await sql`ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS bank_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL`;
